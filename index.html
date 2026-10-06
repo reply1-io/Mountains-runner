@@ -283,7 +283,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
         <div class="g-spec">
           <dl class="stats" id="stats"></dl>
           <div class="opts">
-            <div class="opt"><span>Map</span><div class="seg" data-opt="map"><button data-v="dragon">Tail of the Dragon</button><button data-v="forest">Forest Stage</button></div></div>
+            <div class="opt"><span>Map</span><div class="seg" data-opt="map"><button data-v="dragon">Tail of the Dragon</button><button data-v="forest">Forest Stage</button><button data-v="circuit">Race Circuit</button></div></div>
             <div class="opt"><span>Route</span><div class="seg" data-opt="route"><button data-v="sprint" id="rtSprint">Sprint · 3 mi</button><button data-v="full" id="rtFull">Full · 11 mi</button></div></div>
             <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="overcast">Overcast</button><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
             <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
@@ -372,7 +372,7 @@ const PLAYER_Z = CAM_H * CAM_DEPTH;
 const CAR_W = 760, MOTO_W = 300, PW = CAR_W / ROAD;
 // the two maps: Tail of the Dragon (US 129) and a gravel forest rally stage
 let TOTAL_CURVES = 318, FULL_MI = 11, SPRINT_MI = 3;
-const isForest = () => settings.map === 'forest';
+const isForest = () => settings.map === 'forest', isCircuit = () => settings.map === 'circuit';
 const DRAW = 240;
 
 /* ================= cars (factory figures, approximate) ================= */
@@ -415,6 +415,10 @@ const CARS = [
     note:'The homologation special that ruled European touring cars. Its wild wing and fins earned the "Batmobile" name.',
     paints:[P('Alpine White','#f1f0ea'), P('Polaris Silver','#bfc3c6'), P('Golf Yellow','#e9b72c'), P('Taiga Green','#3b5a3a'), P('Malaga Red','#7d1d24')],
     s:{bodyW:.93, shoulder:.52, roof:.16, roofW:.74, lights:'rect', wing:'csl', exhaust:'single', hips:true}},
+  {id:'lmp2', region:'eu', make:'Oreca', model:'07 Gibson (LMP2)', year:2023, hp:600, lb:2050, drive:'RWD', gears:6, box:'6-speed sequential', shift:0.05, redline:9500, z60:2.9, top:205, grip:1.45, brakeG:1.7, abs:false, eng:{cyl:8, mul:1.0}, livery:'race',
+    note:'A closed-cockpit endurance prototype: 600 hp Gibson V8, carbon tub, huge downforce. Built for Le Mans and Road Atlanta, not mountain roads.',
+    paints:[P('Race Red','#c8261f'), P('Gulf Blue','#8fc3e3'), P('Carbon Black','#17181a'), P('Arctic White','#efefea'), P('Signal Yellow','#f0c419')],
+    s:{bodyW:1, shoulder:.5, roof:.3, roofW:.4, lights:'bar', wing:'lmp', exhaust:'center', hips:true}},
   {id:'golf', region:'eu', make:'Volkswagen', model:'Golf GTI 16V (Mk2)', year:1988, hp:137, lb:2150, drive:'FWD', gears:5, box:'5-speed manual', shift:0.3, redline:7000, z60:8.0, top:129, grip:0.82, brakeG:0.85, abs:false, eng:{cyl:4, mul:1.25},
     note:'Front-wheel drive on skinny tires. Light enough to carry speed everywhere if you never lift.',
     paints:[P('Alpine White','#eeeeea'), P('Mars Red','#c41e25'), P('Black','#121314'), P('Helios Blue','#1f5fa8'), P('Oak Green','#2f4f3a')],
@@ -505,12 +509,12 @@ function prepCar(car){
   }
   car.stop60 = Math.round(26.82 * 26.82 / (2 * car.brakeG * G) * 3.281);
 }
-const SHORT = {csl:'3.0 CSL', e30:'M3 E30', mustang:'Mustang GT', charger70:'Charger R/T ’70', hellcat:'Challenger Hellcat', c8:'Corvette C8', viper:'Viper GTS', gt3:'911 GT3', m3:'M3 E46', golf:'Golf GTI Mk2', elise:'Elise S1', svj:'Aventador SVJ', ae86:'AE86 Trueno', r34:'Skyline GT-R R34', supra:'Supra Mk IV', rx7:'RX-7 FD', miata:'MX-5 Miata NA'};
+const SHORT = {lmp2:'Oreca 07 LMP2', csl:'3.0 CSL', e30:'M3 E30', mustang:'Mustang GT', charger70:'Charger R/T ’70', hellcat:'Challenger Hellcat', c8:'Corvette C8', viper:'Viper GTS', gt3:'911 GT3', m3:'M3 E46', golf:'Golf GTI Mk2', elise:'Elise S1', svj:'Aventador SVJ', ae86:'AE86 Trueno', r34:'Skyline GT-R R34', supra:'Supra Mk IV', rx7:'RX-7 FD', miata:'MX-5 Miata NA'};
 // wheelbase m, front weight share, CG height m, grip balance (+ = understeer at the limit), engine voice
 const CHASSIS = {
   mustang:[2.72, .53, .52, .04, {v:'v8', pops:1}], charger70:[2.97, .56, .55, .06, {v:'bigv8', pops:1}], hellcat:[2.95, .57, .53, .05, {v:'v8', sc:1, pops:1, tweak:{muffler:1100, jitter:0.08}}],
   c8:[2.72, .40, .45, .02, {v:'v8', pops:1, tweak:{muffler:1900, pipes:[2.1, 2.25]}}], viper:[2.44, .50, .47, .03, {v:'v10', pops:1}],
-  gt3:[2.46, .39, .45, .03, {v:'flat6', pops:1}], m3:[2.73, .51, .50, .03, {v:'i6', pops:1, tweak:{intake:0.3, intakeHz:1100, muffler:2300}}], csl:[2.625, .53, .5, .03, {v:'i6', pops:1, tweak:{muffler:2300, intake:0.3, intakeHz:1050}}], e30:[2.56, .52, .50, .02, {v:'i4', pops:1, tweak:{muffler:2400, pulseDeg:100, intake:0.38, intakeHz:1200}}], golf:[2.47, .62, .52, .07, {v:'i4', tweak:{muffler:1500}}],
+  gt3:[2.46, .39, .45, .03, {v:'flat6', pops:1}], m3:[2.73, .51, .50, .03, {v:'i6', pops:1, tweak:{intake:0.3, intakeHz:1100, muffler:2300}}], lmp2:[3.005, .45, .3, .06, {v:'v8', pops:1, tweak:{muffler:3200, pipes:[1.1, 1.15], intake:0.35, intakeHz:1300, pulseDeg:80}}], csl:[2.625, .53, .5, .03, {v:'i6', pops:1, tweak:{muffler:2300, intake:0.3, intakeHz:1050}}], e30:[2.56, .52, .50, .02, {v:'i4', pops:1, tweak:{muffler:2400, pulseDeg:100, intake:0.38, intakeHz:1200}}], golf:[2.47, .62, .52, .07, {v:'i4', tweak:{muffler:1500}}],
   elise:[2.30, .39, .42, .02, {v:'i4', tweak:{muffler:2200, pipes:[1.5]}}], svj:[2.70, .43, .45, .03, {v:'v12', pops:1}],
   ae86:[2.40, .53, .50, .02, {v:'i4'}], r34:[2.665, .55, .50, .04, {v:'i6', turbo:1, bov:'pssh', pops:1, tweak:{muffler:1500}}], supra:[2.55, .53, .49, .04, {v:'i6', turbo:1, bov:'pssh', tweak:{muffler:1300, pipes:[2.8]}}],
   rx7:[2.43, .50, .46, .02, {v:'rotary', turbo:1, bov:'flutter', pops:1}], miata:[2.27, .52, .46, .02, {v:'i4', tweak:{muffler:1400, pipes:[2.3]}}],
@@ -883,10 +887,10 @@ function buildSprites(){
   SP.tabcat = {img: makeBoard([{t:'TABCAT CREEK', size:40}, {t:'BRIDGE', size:28}], {bg:'#1f5e3b', fg:'#f4f6f2', border:'#e8eee9', post:'#8f979c'}), ww: 1600, hit: 0.3};
   SP.limit = {img: makeReg(['SPEED', 'LIMIT', '30'], [20, 20, 54]), ww: 380, hit: 0.1};
   SP.trucks = {img: makeReg(['TRUCKS OVER', '30 FT', 'PROHIBITED'], [15, 26, 15]), ww: 420, hit: 0.1};
-  const fo = isForest();
-  SP.bStart = {img: fo ? makeBanner('SS1 · PINE RIDGE', 'SPECIAL STAGE · START', false) : makeBanner('DEALS GAP', 'US 129 · START · ELEV. 1,986 FT', false), ww: ROAD * 2.75, hit: 0};
-  SP.bSprint = {img: makeBanner(fo ? '2 MILE MARK' : '3 MILE MARK', 'SPRINT FINISH', true), ww: ROAD * 2.75, hit: 0};
-  SP.bFinish = {img: makeBanner(fo ? 'STOP' : 'FINISH', fo ? 'FLYING FINISH · STAGE COMPLETE' : 'YOU RODE THE WHOLE DRAGON', true), ww: ROAD * 2.75, hit: 0};
+  const fo = isForest(), ci = isCircuit();
+  SP.bStart = {img: ci ? makeBanner('START', 'LAP 1 OF 2 · LIGHTS OUT', true) : fo ? makeBanner('SS1 · PINE RIDGE', 'SPECIAL STAGE · START', false) : makeBanner('DEALS GAP', 'US 129 · START · ELEV. 1,986 FT', false), ww: ROAD * 2.75, hit: 0};
+  SP.bSprint = {img: ci ? makeBanner('LAP 2', 'ONE-LAP SPRINT FINISH', true) : makeBanner(fo ? '2 MILE MARK' : '3 MILE MARK', 'SPRINT FINISH', true), ww: ROAD * 2.75, hit: 0};
+  SP.bFinish = {img: makeBanner(fo ? 'STOP' : 'FINISH', ci ? 'CHEQUERED FLAG' : fo ? 'FLYING FINISH · STAGE COMPLETE' : 'YOU RODE THE WHOLE DRAGON', true), ww: ROAD * 2.75, hit: 0};
   SP.glowW = makeGlow('rgba(255,244,210,1)'); SP.glowR = makeGlow('rgba(255,40,30,1)');
   // traffic
   traffic.length = 0;
@@ -925,25 +929,27 @@ function addSprite(i, sp, offset, scale){ const s = segments[i]; if(s) s.sprites
 function buildTrack(){
   segments = []; curves = [];
   const fo = isForest();
-  TOTAL_CURVES = fo ? 160 : 318; FULL_MI = fo ? 6 : 11; SPRINT_MI = fo ? 2 : 3;
-  const R = rng(fo ? 512 : 129);
+  const ci = isCircuit();
+  TOTAL_CURVES = ci ? 24 : fo ? 160 : 318; FULL_MI = ci ? 5 : fo ? 6 : 11; SPRINT_MI = ci ? 2.5 : fo ? 2 : 3;
+  const R = rng(ci ? 2541 : fo ? 512 : 129);
   addRoad(0, 70, 0, 0, 0);
   startIndex = 50;
   let dir = 1;
   for(let i = 0; i < TOTAL_CURVES; i++){
-    if(R() < 0.76) dir = -dir;
+    if(R() < (ci ? 0.4 : 0.76)) dir = -dir;
     const r = R();
-    let sev = fo ? (r < 0.25 ? 1.6 + R() * 1.4 : r < 0.6 ? 3 + R() * 1.4 : 4.4 + R() * 2) : r < 0.34 ? 1.8 + R() * 1.4 : r < 0.7 ? 3.2 + R() * 1.3 : 4.6 + R() * 1.7;
-    if(NAMED[i] && !fo) sev = Math.max(sev, 5.4);
+    let sev = ci ? (r < 0.3 ? 1.5 + R() * 1.5 : r < 0.65 ? 3 + R() * 1.5 : 4.5 + R() * 1.8) : fo ? (r < 0.25 ? 1.6 + R() * 1.4 : r < 0.6 ? 3 + R() * 1.4 : 4.4 + R() * 2) : r < 0.34 ? 1.8 + R() * 1.4 : r < 0.7 ? 3.2 + R() * 1.3 : 4.6 + R() * 1.7;
+    if(NAMED[i] && !fo && !ci) sev = Math.max(sev, 5.4);
     const enter = 12 + ((R() * 14) | 0), leave = 12 + ((R() * 14) | 0);
     const hold = (sev > 4.6 ? 10 : 18) + ((R() * (sev > 4.6 ? 26 : 40)) | 0);
     const s0 = segments.length;
-    addRoad(enter, hold, leave, dir * sev, (R() - 0.53) * (fo ? 6 : 13));
-    const c = fo ? {i, start: s0, end: segments.length, dir, sev, name: null, rail: false, cliff: false, photo: i % 7 === 3}
+    addRoad(enter, hold, leave, dir * sev, (R() - 0.53) * (fo ? 6 : ci ? 8 : 13));
+    const c = fo || ci ? {i, start: s0, end: segments.length, dir, sev, name: null, rail: false, cliff: false, photo: fo && i % 7 === 3}
       : {i, start: s0, end: segments.length, dir, sev, name: NAMED[i] || null, rail: sev > 3.8 || R() < 0.3, cliff: R() < 0.45, photo: i % 23 === 11};
-    if(c.photo && !fo) c.rail = true;
+    if(c.photo && !fo && !ci) c.rail = true;
     curves.push(c);
-    if(R() < 0.6) addRoad(0, 4 + ((R() * 22) | 0), 0, 0, (R() - 0.5) * 2);
+    if(ci) addRoad(0, 30 + ((R() * 110) | 0), 0, 0, (R() - 0.5) * 3);
+    else if(R() < 0.6) addRoad(0, 4 + ((R() * 22) | 0), 0, 0, (R() - 0.5) * 2);
   }
   const finishIndex = segments.length + 8;
   addRoad(0, 420, 0, 0, 0);
@@ -955,6 +961,18 @@ function buildTrack(){
   decorate(R, finishIndex);
 }
 function decorate(R, finishIndex){
+  // the race circuit: gravel traps outside every corner, kerbs at apex and exit, grandstand crowds in zones
+  if(isCircuit()){
+    for(const c of curves){
+      for(let k = c.start - 6; k < c.end + 14; k++) if(segments[k]) segments[k].trap = -c.dir;
+      const ap = (c.start + c.end) >> 1; for(let k = ap - 12; k < ap + 12; k++) if(segments[k]) segments[k].kerb = c.dir;
+      for(let k = c.end - 10; k < c.end + 6; k++) if(segments[k]) segments[k].kerb2 = -c.dir;
+    }
+    for(let i = 0; i < segments.length; i++){ const z = Math.floor(i / 140) % 3; segments[i].crowd = z === 0 ? -1 : z === 1 ? 1 : 0; }
+    for(let k = startIndex - 30; k < startIndex + 30; k++) segments[k].crowd = 2;
+    addSprite(startIndex, SP.bStart, 0); addSprite(Math.floor(sprintEndZ / SEG), SP.bSprint, 0); addSprite(finishIndex, SP.bFinish, 0);
+    return;
+  }
   for(let i = 0; i < segments.length; i++){
     if(R() < 0.006){ const pos = (R() - 0.5) * 1.4, hw = 0.08 + R() * 0.2, n = 5 + ((R() * 20) | 0); for(let k = 0; k < n; k++) if(segments[i + k]) segments[i + k].patch = [pos, hw]; }
   }
@@ -1140,7 +1158,7 @@ function resetRun(attract){
   nextCurve = 0; particles = []; scraping = false;
   stats = {top: 0, wrecks: 0, rails: 0, photos: 0, bumps: 0, maxG: 0};
   for(const c of curves) c.snapped = false;
-  const n = settings.traffic === 'off' || isForest() ? 0 : Math.round((routeEnd - startZ) / UPM * 6.5);
+  const n = settings.traffic === 'off' || isForest() || isCircuit() ? 0 : Math.round((routeEnd - startZ) / UPM * 6.5);
   makeCars(attract ? Math.round((fullEndZ - startZ) / UPM * 5) : n, startZ, attract ? fullEndZ : routeEnd);
   if(attract){ position = startZ - PLAYER_Z + SEG * 20; drv.v = 14; }
 }
@@ -1834,21 +1852,21 @@ function render(){
 // A low-poly model built from each car's proportions, drawn every frame at its real heading so the
 // car visibly turns, shows its side when it yaws and steers its front wheels.
 const v3 = {sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]};
-const MID_ENGINE = {c8: 1, svj: 1, elise: 1};
+const MID_ENGINE = {c8: 1, svj: 1, elise: 1, lmp2: 1};
 const LIVERY = {
   none: {name: 'Factory'},
   stripes: {name: 'Twin stripes', center: [[-0.16, -0.06], [0.06, 0.16]], col: ['#f1efe6']},
   rally: {name: 'Rally stripe', center: [[-0.12, 0.12]], col: ['#f1efe6'], cage: 1},
   m: {name: 'M stripes', bands: ['#5bbfea', '#2b3a8f', '#e2231a'], cage: 1, number: c => ({csl: 1, e30: 23, m3: 46}[c.id] || 3)},
-  race: {name: 'Race number', center: [[-0.1, 0.1]], col: ['#f1efe6'], cage: 1, number: c => ({ae86: 86, r34: 34, supra: 80, rx7: 7, gt3: 911, c8: 8, viper: 10, mustang: 5, hellcat: 66, charger70: 70, svj: 63, golf: 16, elise: 1, miata: 89}[c.id] || 9)},
+  race: {name: 'Race number', center: [[-0.1, 0.1]], col: ['#f1efe6'], cage: 1, number: c => ({lmp2: 99, ae86: 86, r34: 34, supra: 80, rx7: 7, gt3: 911, c8: 8, viper: 10, mustang: 5, hellcat: 66, charger70: 70, svj: 63, golf: 16, elise: 1, miata: 89}[c.id] || 9)},
 };
-const PLATES = {ae86: ['AE 86-29'], r34: ['GT-R 34'], supra: ['2JZ GTE'], rx7: ['13B RE'], miata: ['NA 1990'], gt3: ['S GT 992'], svj: ['SVJ 770'], m3: ['M E46 3'], e30: ['M E30 3'], csl: ['M CSL 73'], golf: ['GTI 16V'], elise: ['S1 LTS'], mustang: ['5.0 GT'], hellcat: ['HELLCAT'], c8: ['C8 Z51'], viper: ['GTS 96'], charger70: ['RT 426']};
+const PLATES = {lmp2: ['LMP2 99'], ae86: ['AE 86-29'], r34: ['GT-R 34'], supra: ['2JZ GTE'], rx7: ['13B RE'], miata: ['NA 1990'], gt3: ['S GT 992'], svj: ['SVJ 770'], m3: ['M E46 3'], e30: ['M E30 3'], csl: ['M CSL 73'], golf: ['GTI 16V'], elise: ['S1 LTS'], mustang: ['5.0 GT'], hellcat: ['HELLCAT'], c8: ['C8 Z51'], viper: ['GTS 96'], charger70: ['RT 426']};
 const liveryOf = car => (settings.liveries && settings.liveries[car.id]) || car.livery || 'none';
 const WHEELS = {
   mustang: {style: 'five', finish: '#43474c', caliper: '#c41e25'}, charger70: {style: 'rally', finish: '#c8ccd0', caliper: '#2b2d30'},
   hellcat: {style: 'five', finish: '#1d1f22', caliper: '#c41e25'}, c8: {style: 'five', finish: '#c3c7cb', caliper: '#c41e25'},
   viper: {style: 'five', finish: '#d4d8dc', caliper: '#3a3c40'}, gt3: {style: 'ten', finish: '#c5c9cd', caliper: '#c41e25'},
-  m3: {style: 'ten', finish: '#c9cdd1', caliper: '#4a4d52'}, e30: {style: 'mesh', finish: '#d0d3d6', caliper: '#3a3c40'}, csl: {style: 'mesh', finish: '#c7cacd', caliper: '#3a3c40'},
+  m3: {style: 'ten', finish: '#c9cdd1', caliper: '#4a4d52'}, e30: {style: 'mesh', finish: '#d0d3d6', caliper: '#3a3c40'}, csl: {style: 'mesh', finish: '#c7cacd', caliper: '#3a3c40'}, lmp2: {style: 'six', finish: '#1c1d20', caliper: '#c8202a'},
   golf: {style: 'holes', finish: '#c9ccd0', caliper: '#3a3c40'}, elise: {style: 'six', finish: '#c7cbcf', caliper: '#3a3c40'},
   svj: {style: 'y5', finish: '#18191b', caliper: '#f08a1c'}, ae86: {style: 'eight', finish: '#c3c6ca', caliper: '#3a3c40'},
   r34: {style: 'five', finish: '#b7bcc1', caliper: '#c9a227'}, supra: {style: 'five', finish: '#c9cdd1', caliper: '#3a3c40'},
@@ -1878,6 +1896,8 @@ const P3 = {
     top: [[0, .97], [.04, 1.02], [.18, 1.03], [.30, 1.30], [.36, 1.37], [.58, 1.37], [.675, .99], [.85, .95], [.96, .90], [1, .82]], rear: [.18, .36], ws: [.58, .675], side: [.36, .62], head: 'angular', bulge: {t0: .72, t1: .95, w: .35, h: .03}},
   e30:      {L: 4.35, W: 1.68, H: 1.37, belt: .96, wc: 0, cab: .8, nose: .9, tail: .95, flF: .05, flR: .06, box: 1, r: .31,
     top: [[0, 1.0], [.03, 1.03], [.17, 1.04], [.24, 1.33], [.31, 1.37], [.58, 1.37], [.66, .97], [.88, .92], [.97, .88], [1, .80]], rear: [.17, .31], ws: [.58, .66], side: [.31, .62], bp: .47, head: 'quadsmall'},
+  lmp2:     {L: 4.75, W: 1.90, H: 1.05, belt: .74, wc: -.06, cab: .42, nose: .9, tail: .96, flF: .1, flR: .08, r: .35,
+    top: [[0, .86], [.05, .9], [.2, .84], [.3, .9], [.37, 1.02], [.43, 1.06], [.53, 1.05], [.66, .8], [.78, .7], [.92, .58], [1, .5]], rear: [], ws: [.53, .66], side: [.45, .53], head: 'angular'},
   csl:      {L: 4.63, W: 1.73, H: 1.37, belt: .92, wc: -.02, cab: .78, nose: .86, tail: .93, flF: .06, flR: .07, r: .32,
     top: [[0, .92], [.04, .98], [.2, .99], [.28, 1.30], [.34, 1.37], [.62, 1.37], [.70, .96], [.88, .92], [.97, .86], [1, .8]], rear: [.2, .34], ws: [.62, .70], side: [.34, .65], head: 'quadsmall'},
   golf:     {L: 3.99, W: 1.68, H: 1.41, belt: .97, wc: 0, cab: .82, nose: .9, tail: .94, r: .3,
@@ -2386,7 +2406,7 @@ function drawGMeter(){
 function setCount(n){ const el = $('#count'); el.hidden = false; setText(el, 'cd', String(n)); }
 
 function show(id){ for(const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id; }
-function bestKey(){ return (isForest() ? 'forest:' : '') + settings.route + ':' + settings.car; }
+function bestKey(){ return (settings.map && settings.map !== 'dragon' ? settings.map + ':' : '') + settings.route + ':' + settings.car; }
 
 function startRace(){
   Snd.init();
@@ -2485,7 +2505,7 @@ function drawPreview3D(now){
 }
 function attractCar(){ player = playerSprites(); }
 // a dirt road swaps the asphalt and its paint for packed earth
-function palFor(){ const b = PAL[settings.tod] || PAL.gold; return settings.road === 'dirt' ? Object.assign({}, b, {road: ['#7d6748', '#776244'], line: '#7d6748', yellow: '#7d6748', shoulder: ['#6a5a40', '#64553c']}) : b; }
+function palFor(){ let b = PAL[settings.tod] || PAL.gold; if(isCircuit()) b = Object.assign({}, b, {yellow: b.road[0], shoulder: ['#c8352c', '#ece7dc'], grass: ['#55703a', '#4c6634']}); return settings.road === 'dirt' ? Object.assign({}, b, {road: ['#7d6748', '#776244'], line: '#7d6748', yellow: '#7d6748', shoulder: ['#6a5a40', '#64553c']}) : b; }
 function setPalette(){ pal = palFor(); buildLayers(); }
 
 /* input wiring */
@@ -2564,7 +2584,7 @@ function cycleCar(d){ const list = regionCars(); const i = list.findIndex(c => c
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { settings.region = b.dataset.r; settings.car = regionCars()[0].id; renderGarage(); attractCar(); });
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
   const k = b.parentElement.dataset.opt;
-  if(k === 'map'){ if(settings.map === b.dataset.v) return; settings.map = b.dataset.v; settings.road = settings.map === 'forest' ? 'dirt' : 'dry'; saveSettings(); try{ sessionStorage.setItem('dragon:garage', '1'); }catch(e){} location.reload(); return; }
+  if(k === 'map'){ if(settings.map === b.dataset.v) return; settings.map = b.dataset.v; settings.road = settings.map === 'forest' ? 'dirt' : 'dry'; if(settings.map === 'circuit'){ settings.tod = 'overcast'; } saveSettings(); try{ sessionStorage.setItem('dragon:garage', '1'); }catch(e){} location.reload(); return; }
   settings[k] = b.dataset.v;
   if(k === 'tod' || k === 'road') setPalette();
   if(k === 'sound') Snd.setOn(settings.sound === 'on');
@@ -2615,7 +2635,7 @@ function makeGL(T, X){
   const ptI = (i, latM, dy) => { const th = TH[i]; return [TX[i] + Math.cos(th) * latM, TY[i] + (dy || 0), TZ[i] + Math.sin(th) * latM]; };
 
   /* ---- textures painted on canvases ---- */
-  const asphaltTex = (wet) => mk(512, 1024, (g, w, h) => {
+  const asphaltTex = (wet, circ) => mk(512, 1024, (g, w, h) => {
     g.fillStyle = wet ? '#2c2f33' : '#4b4e52'; g.fillRect(0, 0, w, h);
     const R2 = rng(5);
     for(let i = 0; i < 26000; i++){ const v = R2(); g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.08 + R2() * 0.12})` : `rgba(255,255,255,${0.03 + R2() * 0.07})`; g.fillRect(R2() * w, R2() * h, 1 + R2() * 2, 1 + R2() * 2); }
@@ -2626,7 +2646,7 @@ function makeGL(T, X){
     for(let k = 0; k < 6; k++){ let x = R2() * w, y = R2() * h; g.beginPath(); g.moveTo(x, y); for(let j = 0; j < 8; j++){ x += (R2() - 0.5) * 40; y += R2() * 30; g.lineTo(x, y); } g.stroke(); }
     // paint: white edge lines, double yellow centre (slightly worn)
     const line = (u, wd, col) => { g.fillStyle = col; g.fillRect((u - wd / 2) * w, 0, wd * w, h); for(let i = 0; i < 300; i++){ g.fillStyle = 'rgba(60,60,60,.35)'; g.fillRect((u - wd / 2) * w + R2() * wd * w, R2() * h, 2, 2); } };
-    line(0.03, 0.022, '#e9e6dc'); line(0.97, 0.022, '#e9e6dc'); line(0.488, 0.016, '#e2b12f'); line(0.512, 0.016, '#e2b12f');
+    line(0.03, 0.022, '#e9e6dc'); line(0.97, 0.022, '#e9e6dc'); if(!circ){ line(0.488, 0.016, '#e2b12f'); line(0.512, 0.016, '#e2b12f'); }
   });
   // painterly ground: broad soft patches of grass and earth rather than fine noise
   const groundTex = () => mk(512, 512, (g, w, h) => {
@@ -2651,8 +2671,14 @@ function makeGL(T, X){
   /* ---- materials ---- */
   const roadMat = new T.MeshStandardMaterial({map: tex(asphaltTex(false), true), roughness: 0.88, metalness: 0});
   const roadWetMap = tex(asphaltTex(true), true);
-  const roadDryMap = roadMat.map, roadDirtMap = tex(dirtTex(), true);
-  const groundMat = new T.MeshStandardMaterial({map: tex(groundTex(), true), roughness: 1});
+  const roadDryMap = isCircuit() ? tex(asphaltTex(false, true), true) : roadMat.map, roadDirtMap = tex(dirtTex(), true);
+  // circuit: mowed lawn, beige gravel traps, red and white kerbs, white concrete wall with catch fence
+  const lawnTex = () => mk(256, 512, (g, w, h) => { for(let y = 0; y < h; y += 64){ g.fillStyle = (y / 64) % 2 ? '#5b7a3c' : '#516f35'; g.fillRect(0, y, w, 64); } const R2 = rng(21); for(let i = 0; i < 1500; i++){ g.fillStyle = R2() < 0.5 ? 'rgba(30,50,20,.18)' : 'rgba(200,220,150,.08)'; g.fillRect(R2() * w, R2() * h, 2, 3); } });
+  const trapMat = new T.MeshLambertMaterial({map: tex(mk(256, 256, (g, w, h) => { g.fillStyle = '#c4ae86'; g.fillRect(0, 0, w, h); const R2 = rng(22); for(let i = 0; i < 9000; i++){ g.fillStyle = R2() < 0.5 ? 'rgba(90,70,40,.3)' : 'rgba(255,245,220,.35)'; g.fillRect(R2() * w, R2() * h, 1 + R2() * 2, 1 + R2() * 2); } for(let i = 0; i < 60; i++){ g.strokeStyle = 'rgba(120,95,60,.25)'; g.lineWidth = 2; g.beginPath(); const x = R2() * w; g.moveTo(x, 0); g.bezierCurveTo(x + 30, h * 0.3, x - 30, h * 0.7, x + 10, h); g.stroke(); } }), true), side: T.DoubleSide});
+  const kerbMat = new T.MeshLambertMaterial({map: tex(mk(32, 64, (g, w, h) => { g.fillStyle = '#d23a2e'; g.fillRect(0, 0, w, h / 2); g.fillStyle = '#f1ede4'; g.fillRect(0, h / 2, w, h / 2); }), true), side: T.DoubleSide});
+  const wallMat = new T.MeshLambertMaterial({color: 0xe6e4dc, side: T.DoubleSide});
+  const fenceMat = new T.MeshLambertMaterial({map: tex(mk(64, 64, (g, w, h) => { g.strokeStyle = 'rgba(40,44,46,.9)'; g.lineWidth = 2; for(let k = -64; k < 128; k += 12){ g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 64, 64); g.moveTo(k + 64, 0); g.lineTo(k, 64); g.stroke(); } }), true), transparent: true, alphaTest: 0.2, side: T.DoubleSide, depthWrite: false});
+  const groundMat = new T.MeshStandardMaterial({map: tex(isCircuit() ? lawnTex() : groundTex(), true), roughness: 1});
   const gravelMat = new T.MeshStandardMaterial({map: tex(gravelTex(), true), roughness: 1});
   const railMat = new T.MeshStandardMaterial({color: 0xb9c0c4, metalness: 0.75, roughness: 0.35});
   const postMat = new T.MeshStandardMaterial({color: 0x555a5e, metalness: 0.5, roughness: 0.6});
@@ -2667,7 +2693,7 @@ function makeGL(T, X){
   };
   // terrain: rises on the inside of bends (the mountain), falls away on the outside
   const side = new Float32Array(N + 1); { let acc = 0; for(let i = 0; i <= N; i++){ const c = i < N ? segments[i].curve : 0; acc += (Math.sign(c) * Math.min(1, Math.abs(c) / 3) - acc) * 0.01; side[i] = acc; } }
-  const terr = (i, lat) => { const sd = Math.sign(lat), up = side[i] * sd; const n = Math.sin(i * 0.013 + sd) * 2 + Math.sin(i * 0.051) * 0.8; return (up * 7 + n) * clamp((Math.abs(lat) - 4) / 18, 0, 1) * (Math.abs(lat) > 4 ? 1 : 0); };
+  const terr = (i, lat) => (isCircuit() ? 0.25 : 1) * terr0(i, lat), terr0 = (i, lat) => { const sd = Math.sign(lat), up = side[i] * sd; const n = Math.sin(i * 0.013 + sd) * 2 + Math.sin(i * 0.051) * 0.8; return (up * 7 + n) * clamp((Math.abs(lat) - 4) / 18, 0, 1) * (Math.abs(lat) > 4 ? 1 : 0); };
   const treeKinds = [...SP.pine.slice(0, 3).map(s => ({img: s.img, h: [10, 17], pine: 1})), ...SP.oak.slice(0, 7).map(s => ({img: s.img, h: [8, 14]}))];
   const crossGeo = (() => { const g2 = new T.BufferGeometry(); const P2 = [-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0, 0, 0, -0.5, 0, 0, 0.5, 0, 1, 0.5, 0, 1, -0.5]; g2.setAttribute('position', new T.BufferAttribute(new Float32Array(P2), 3)); g2.setAttribute('uv', new T.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1]), 2)); g2.setAttribute('normal', new T.BufferAttribute(new Float32Array(Array(8).fill([0, 1, 0]).flat()), 3)); g2.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]); return g2; })();
   const treeMats = treeKinds.map(k => new T.MeshLambertMaterial({map: tex(k.img), alphaTest: 0.45, side: T.DoubleSide, color: new T.Color(1.5, 1.5, 1.45), emissive: new T.Color(0.06, 0.06, 0.05)}));
@@ -2691,6 +2717,14 @@ function makeGL(T, X){
   const tapeTex = tex(mk(64, 8, (g, w, h) => { for(let x = 0; x < w; x += 16){ g.fillStyle = (x / 16) % 2 ? '#f1ede4' : '#d0312a'; g.fillRect(x, 0, 16, h); } }), true);
   const tapeMat = new T.MeshLambertMaterial({map: tapeTex, side: T.DoubleSide});
   const tentCols = ['#d9862a', '#c9372c', '#2f5fa8', '#e2b23a', '#3d7a46'].map(c => new T.Color(c));
+  const personGeo = merge([[new T.CylinderGeometry(0.13, 0.12, 0.8, 6).translate(0, 0.4, 0), '#2f3442'], [new T.CylinderGeometry(0.19, 0.16, 0.62, 6).translate(0, 1.11, 0), '#ffffff']]);
+  const headGeo = merge([[new T.IcosahedronGeometry(0.12, 0).translate(0, 1.56, 0), '#ffffff']]);
+  const canopyGeo = merge([[new T.ConeGeometry(2.05, 0.6, 4).rotateY(Math.PI / 4).translate(0, 2.55, 0), '#ffffff'], ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, z]) => [new T.CylinderGeometry(0.03, 0.03, 2.3, 4).translate(x * 1.38, 1.15, z * 1.38), '#9a9ea2'])]);
+  const parkedGeo = merge([[new T.BoxGeometry(1.8, 0.7, 4.4).translate(0, 0.55, 0), '#ffffff'], [new T.BoxGeometry(1.55, 0.55, 2.2).translate(0, 1.17, -0.2), '#c9ccce'], ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([x, z]) => [new T.CylinderGeometry(0.32, 0.32, 0.22, 8).rotateZ(Math.PI / 2).translate(x * 0.82, 0.32, z * 1.35), '#1a1a1a'])]);
+  const shirtCols = ['#e9e6de', '#2b3a55', '#c3332b', '#1d1f22', '#7a8a96', '#e0b030', '#3d6b45', '#d07a2a', '#8a2a3a', '#4a78b0'].map(c => new T.Color(c));
+  const skinCols = ['#e8c4a0', '#c99a72', '#8c5e3c', '#f0d2b4', '#6a4630'].map(c => new T.Color(c));
+  const canopyCols = ['#f2f1ec', '#f2f1ec', '#2f62b0', '#e8c23a', '#f2f1ec', '#253d7a'].map(c => new T.Color(c));
+  const parkCols = ['#e9e8e4', '#b9bec2', '#22252a', '#7a8590', '#8a1d22', '#2b3a55', '#d9d6cc', '#4a4d52'].map(c => new T.Color(c));
   const leafCols = ['#8a6c34', '#9a5c2c', '#6e7a36', '#a47c34', '#5c6c32', '#7c5a30'].map(c => new T.Color(c));
   const pineTint = new T.Color(), tmpCol = new T.Color();
   const placeInst = (geo, list, fn) => { if(!list.length) return null; const im = new T.InstancedMesh(geo, flatMat, list.length); list.forEach((it, n) => { fn(it, n); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); im.setColorAt(n, tmpCol); }); im.instanceColor.needsUpdate = true; return im; };
@@ -2704,7 +2738,8 @@ function makeGL(T, X){
   for(let c0 = 0; c0 < N; c0 += CH){
     const c1 = Math.min(N, c0 + CH), grp = new T.Group();
     const road = new T.Mesh(strip(c0, c1, [-LAT, LAT], null, [0, 1], 6), roadMat); road.receiveShadow = true; grp.add(road);
-    const shL = new T.Mesh(strip(c0, c1, [-LAT - 0.55, -LAT], (i, c) => c === 0 ? -0.04 : 0, null, 3), gravelMat), shR = new T.Mesh(strip(c0, c1, [LAT, LAT + 0.55], (i, c) => c === 1 ? -0.04 : 0, null, 3), gravelMat);
+    const shM = isCircuit() ? groundMat : gravelMat;
+    const shL = new T.Mesh(strip(c0, c1, [-LAT - 0.55, -LAT], (i, c) => c === 0 ? -0.04 : 0, null, 3), shM), shR = new T.Mesh(strip(c0, c1, [LAT, LAT + 0.55], (i, c) => c === 1 ? -0.04 : 0, null, 3), shM);
     shL.receiveShadow = shR.receiveShadow = true; grp.add(shL, shR);
     const lats = [-60, -40, -24, -12, -6, -LAT - 0.55], latsR = lats.map(v => -v).reverse();
     const gL = new T.Mesh(strip(c0, c1, lats, (i, c) => terr(i, lats[c]) - (c === lats.length - 1 ? 0.04 : 0), lats.map(v => v / 12), 12), groundMat);
@@ -2743,8 +2778,8 @@ function makeGL(T, X){
         mesh.position.set(...p); mesh.rotation.set(0, -TH[i], 0); mesh.scale.set(wM, hM, 1); grp.add(mesh);
       }
       for(const sd of [-1, 1]){
-        if(R3() < 0.7){ const lat = sd * (9 + R3() * R3() * 48); const kk = R3() < 0.8 ? (R3() * 3) | 0 : 3 + ((R3() * 7) | 0); byTree[kk].push([i, lat, lerp(...treeKinds[kk].h, R3()) * 1.2]); }
-        if(R3() < 0.55 && segments[i].rail !== sd) bushes.push([i, sd * (LAT + 1.1 + R3() * 4.5)]);
+        if(R3() < 0.7){ const lat = sd * (isCircuit() ? 50 + R3() * 9 : 9 + R3() * R3() * 48); const kk = R3() < 0.8 ? (R3() * 3) | 0 : 3 + ((R3() * 7) | 0); byTree[kk].push([i, lat, lerp(...treeKinds[kk].h, R3()) * 1.2]); }
+        if(!isCircuit() && R3() < 0.55 && segments[i].rail !== sd) bushes.push([i, sd * (LAT + 1.1 + R3() * 4.5)]);
       }
       if(segments[i].tyres && i % 2 === 0) tyres.push([i, segments[i].tyres * (LAT + 1.6)]);
       if(segments[i].tape) tapes[segments[i].tape].push(i);
@@ -2766,6 +2801,35 @@ function makeGL(T, X){
       const pos = [], uv = [], idx = []; let prev = -9;
       for(const i of list){ const lat = sd * (LAT + 1.3), y = terr(i, lat), a = ptI(i, lat, y + 0.82), b = ptI(i, lat, y + 0.9), base = pos.length / 3; pos.push(...a, ...b); uv.push(i * 0.6, 0, i * 0.6, 1); if(prev === i - 1) idx.push(base - 2, base, base - 1, base - 1, base, base + 1); prev = i; }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(pos), 3)); geo.setAttribute('uv', new T.BufferAttribute(new Float32Array(uv), 2)); geo.setIndex(idx); geo.computeVertexNormals(); grp.add(new T.Mesh(geo, tapeMat));
+    }
+    if(isCircuit()){
+      const ribbon = (list, latA, latB, mat, dyA, dyB, vs) => {
+        const pos = [], uv = [], idx = []; let prev = -9;
+        for(const i of list){ const a = ptI(i, latA, terr(i, latA) + dyA), b = ptI(i, latB, terr(i, latB) + dyB), base = pos.length / 3; pos.push(...a, ...b); uv.push(0, i * vs, 1, i * vs); if(prev === i - 1) idx.push(base - 2, base, base - 1, base - 1, base, base + 1); prev = i; }
+        if(!idx.length) return; const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(pos), 3)); geo.setAttribute('uv', new T.BufferAttribute(new Float32Array(uv), 2)); geo.setIndex(idx); geo.computeVertexNormals();
+        const m = new T.Mesh(geo, mat); m.receiveShadow = true; grp.add(m);
+      };
+      const all = []; for(let i = c0; i < c1; i++) all.push(i);
+      const people = [], canopies = [], parked = [], posts = [];
+      for(const sd of [-1, 1]){
+        ribbon(all.filter(i => segments[i].trap === sd), sd * (LAT + 0.55), sd * (LAT + 12), trapMat, 0.02, 0.02, 0.2);
+        ribbon(all.filter(i => segments[i].kerb === sd || segments[i].kerb2 === sd), sd * (LAT - 0.1), sd * (LAT + 0.9), kerbMat, 0.03, 0.03, 0.5);
+        const WL = sd * (LAT + 13); ribbon(all, WL, WL, wallMat, -0.2, 1.05, 0.1); ribbon(all, sd * (LAT + 13.15), sd * (LAT + 13.15), fenceMat, 1.05, 3.1, 0.4);
+        for(let i = c0; i < c1; i++){
+          if(i % 4 === 0) posts.push([i, sd * (LAT + 13.15)]);
+          const cr = segments[i].crowd, here = cr === sd || cr === 2;
+          if(here) for(let k = 0; k < 3; k++) people.push([i, sd * (LAT + 14 + R3() * 6)]);
+          if((here && i % 3 === 0) || (!here && i % 9 === 0 && R3() < 0.6)) canopies.push([i, sd * (LAT + 21.5 + R3() * 4)]);
+          if(i % 2 === 0) for(let row = 0; row < 3; row++) if(R3() < 0.85) parked.push([i, sd * (LAT + 29 + row * 6 + R3() * 0.8)]);
+        }
+      }
+      const at = (i, lat, y) => { const p = ptI(i, lat, terr(i, lat) + (y || 0)); dummy.position.set(...p); };
+      add(placeInst(postGeo, posts, ([i, lat]) => { at(i, lat, 1.0); dummy.rotation.set(0, 0, 0); dummy.scale.set(1.4, 2.1, 1.4); tmpCol.setRGB(0.25, 0.27, 0.28); }));
+      const pr = people.map(([i, lat]) => [i, lat, 0.9 + R3() * 0.18, R3()]);
+      add(placeInst(personGeo, pr, ([i, lat, h]) => { at(i, lat); dummy.rotation.set(0, -TH[i] + (R3() - 0.5), 0); dummy.scale.set(1, h, 1); tmpCol.copy(shirtCols[(R3() * shirtCols.length) | 0]); }));
+      add(placeInst(headGeo, pr, ([i, lat, h, k]) => { at(i, lat); dummy.scale.set(1, h, 1); tmpCol.copy(skinCols[(k * skinCols.length) | 0]); }));
+      add(placeInst(canopyGeo, canopies, ([i, lat]) => { at(i, lat); dummy.rotation.set(0, -TH[i] + (R3() - 0.5) * 0.3, 0); dummy.scale.set(1, 1, 1); tmpCol.copy(canopyCols[(R3() * canopyCols.length) | 0]); }));
+      add(placeInst(parkedGeo, parked, ([i, lat]) => { at(i, lat); dummy.rotation.set(0, -TH[i] + Math.PI / 2 + (R3() < 0.5 ? Math.PI : 0) + (R3() - 0.5) * 0.2, 0); dummy.scale.set(1, 1, 1); tmpCol.copy(parkCols[(R3() * parkCols.length) | 0]); }));
     }
     // tyre walls on the outside of the tight bends, red and white like a rally stage
     const tyreList = []; tyres.forEach(([i, lat]) => { for(let h = 0; h < 3; h++) tyreList.push([i, lat, h]); });
@@ -2996,6 +3060,13 @@ function makeGL(T, X){
       const tr = PP.rear[1], yr = B.topAt(tr); box(B.wAt(tr) * 1.4, 0.03, 0.18, paintMat, 0, yr + 0.02, zT(tr) + 0.04);
       for(const sd of [-1, 1]) box(0.02, 0.07, 0.4, paintMat, sd * B.wAt(0.86) * 0.82, B.topAt(0.86) + 0.035, zT(0.86));
     }
+    if(s.wing === 'lmp'){
+      // prototype aero: full-width wing on swan-neck mounts with tall end plates, and the shark fin down the engine cover
+      box(hw * 1.92, 0.035, 0.42, blackMat, 0, top + 0.36, hl - 0.28); box(hw * 1.92, 0.025, 0.18, blackMat, 0, top + 0.44, hl - 0.48);
+      for(const sd of [-1, 1]){ box(0.02, 0.42, 0.6, blackMat, sd * hw * 0.97, top + 0.28, hl - 0.36); box(0.04, 0.36, 0.06, blackMat, sd * hw * 0.25, top + 0.2, hl - 0.38); }
+      const t0 = PP.side[0] - 0.06, tm = (t0 + 0.08) / 2; box(0.02, 0.2, d.len * (t0 - 0.08), paintMat, 0, B.topAt(tm) + 0.1, zT(tm));
+      box(hw * 1.9, 0.03, 0.4, blackMat, 0, 0.12, -hl + 0.25);
+    }
     // roof antenna
     if(!s.roadster && PP.rear && PP.rear.length){ const ta = PP.rear[1] + 0.02; box(0.008, 0.22, 0.008, blackMat, hw * 0.2, B.topAt(ta) + 0.11, zT(ta)); }
     // door mirrors
@@ -3011,13 +3082,13 @@ function makeGL(T, X){
     if(PP.gti) box(0.5, 0.012, 0.01, new T.MeshBasicMaterial({color: 0xc8161e}), 0, (B.meta[B.meta.length - 1].top + B.meta[B.meta.length - 1].yB) / 2 + 0.05, -hl - 0.02);
     // interior seen through the glass: seats, driver, wheel, dash and (race cars) a roll cage
     if(!s.roadster && PP.side){
-      const LV = LIVERY[livery] || LIVERY.none, ts = lerp(PP.side[0], PP.side[1], 0.42), zs = zT(ts), drv = car.rhd ? 1 : -1;
+      const LV = LIVERY[livery] || LIVERY.none, ts = lerp(PP.side[0], PP.side[1], 0.42), zs = zT(ts), drv = car.rhd ? 1 : -1, ys = Math.min(1, (PP.H - 0.08) / 1.3);
       const seatMat = new T.MeshStandardMaterial({color: LV.cage ? 0xb51d1d : 0x1c1c1f, roughness: 0.8});
-      for(const sd of [-1, 1]){ const x = sd * hw * 0.42; box(0.48, 0.12, 0.5, seatMat, x, 0.42, zs - 0.05); const back = new T.Mesh(new T.BoxGeometry(0.48, 0.62, 0.12), seatMat); back.position.set(x, 0.75, zs + 0.24); back.rotation.x = 0.18; body.add(back); box(0.26, 0.18, 0.1, seatMat, x, 1.12, zs + 0.3); }
+      for(const sd of [-1, 1]){ const x = sd * hw * 0.42; box(0.48, 0.12, 0.5, seatMat, x, 0.42 * ys, zs - 0.05); const back = new T.Mesh(new T.BoxGeometry(0.48, 0.62, 0.12), seatMat); back.position.set(x, 0.75 * ys, zs + 0.24); back.rotation.x = 0.18; body.add(back); box(0.26, 0.18, 0.1, seatMat, x, 1.12 * ys, zs + 0.3); }
       const suit = new T.MeshStandardMaterial({color: LV.cage ? 0x1d3d8f : 0x2b2f36, roughness: 0.8});
-      box(0.4, 0.5, 0.26, suit, drv * hw * 0.42, 0.78, zs + 0.06);
-      const helm = new T.Mesh(new T.SphereGeometry(0.13, 16, 12), new T.MeshStandardMaterial({color: LV.cage ? 0xf2f2ee : 0x3a2c22, roughness: LV.cage ? 0.25 : 0.7})); helm.position.set(drv * hw * 0.42, 1.14, zs + 0.02); body.add(helm);
-      const sw = new T.Mesh(new T.TorusGeometry(0.17, 0.022, 8, 24), blackMat); sw.position.set(drv * hw * 0.42, 0.92, zs - 0.42); sw.rotation.x = -0.4; body.add(sw);
+      box(0.4, 0.5, 0.26, suit, drv * hw * 0.42, 0.78 * ys, zs + 0.06);
+      const helm = new T.Mesh(new T.SphereGeometry(0.13, 16, 12), new T.MeshStandardMaterial({color: LV.cage ? 0xf2f2ee : 0x3a2c22, roughness: LV.cage ? 0.25 : 0.7})); helm.position.set(drv * hw * 0.42, 1.14 * ys, zs + 0.02); body.add(helm);
+      const sw = new T.Mesh(new T.TorusGeometry(0.17, 0.022, 8, 24), blackMat); sw.position.set(drv * hw * 0.42, 0.92 * ys, zs - 0.42); sw.rotation.x = -0.4; body.add(sw);
       const tw2 = PP.ws[1] - 0.02; box(d.wid * 0.82, 0.14, 0.4, trimMat, 0, Math.min(B.belt, B.topAt(tw2)) - 0.04, zT(tw2) + 0.2);
       if(LV.cage){ const cm = new T.MeshStandardMaterial({color: 0xd0d3d6, metalness: 0.7, roughness: 0.3}), cw = hw * PP.cab * 0.9, yt = PP.H - 0.08, zc = zs + 0.42;
         const tube = (a, b) => { const v = new T.Vector3(...b).sub(new T.Vector3(...a)), m = new T.Mesh(new T.CylinderGeometry(0.02, 0.02, v.length(), 8), cm); m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), v.normalize()); body.add(m); };
@@ -3277,6 +3348,7 @@ function frame(now){
 async function boot(){
   try{ await Promise.race([Promise.all([document.fonts.load('400 40px "Racing Sans One"'), document.fonts.load('700 20px "Chakra Petch"')]), new Promise(r => setTimeout(r, 2500))]); }catch(e){}
   buildSprites(); buildTrack();
+  if(isCircuit()) $('.tag').innerHTML = `<em>${TOTAL_CURVES} corners</em> over <em>2 laps</em> of a ${FULL_MI / 2}-mile road course`;
   if(isForest()) $('.tag').innerHTML = `<em>${TOTAL_CURVES} corners</em> in <em>${FULL_MI} miles</em> of forest gravel`;
   pal = palFor();
   resize();

@@ -6,11 +6,11 @@ Open `index.html` in any phone or desktop browser. No build step. The 3D graphic
 
 ## Features
 - Real-time 3D (WebGL): the road is laid out from the same curvature the physics uses, with forest, rock walls, guardrails, distant ridges, sun and shadows, clear-coat car paint with sky reflections, headlights at night, wet-road reflections, fog and bloom. Graphics setting: 3D High, 3D Fast or Classic, with automatic step-down on slow devices
-- 17 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
+- 18 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
-  - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), BMW 3.0 CSL "Batmobile", Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
+  - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), BMW 3.0 CSL "Batmobile", Oreca 07 LMP2 prototype, Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
-- Two maps: Tail of the Dragon (US 129) and Forest Stage, a 6-mile gravel rally stage with tyre walls, chevrons, tape fences, spectator tents and birch trees (pick it under Map in the garage).
+- Three maps: Tail of the Dragon (US 129), Race Circuit (a road course with gravel traps, kerbs, a concrete wall and catch fence, crowds, pop-up tents and parked cars), and Forest Stage, a 6-mile gravel rally stage with tyre walls, chevrons, tape fences, spectator tents and birch trees (pick it under Map in the garage).
 - Stylised low-poly world: faceted pine forest, bushes, rocks, tyre walls, painted grass, film grade, and a Dirt road option with ruts, dust and lower grip.
 - Rally-game look: overcast default light, close high chase camera, big progress readout, red and white chevrons on tight bends.
 - Liveries for every car (twin stripes, rally stripe, BMW M stripes, race numbers), see-through glass with a modeled interior and driver, home-market licence plates, and an analog rev counter.
