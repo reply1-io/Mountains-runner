@@ -2,9 +2,10 @@
 
 A mobile-first arcade driving game set on the Tail of the Dragon (US 129, Deals Gap NC into Tennessee): 318 curves in 11 miles.
 
-Open `index.html` in any phone or desktop browser. No build step and no dependencies.
+Open `index.html` in any phone or desktop browser. No build step. The 3D graphics use three.js loaded from the jsDelivr CDN; if it can't load (offline or no WebGL), the game falls back to the built-in classic renderer.
 
 ## Features
+- Real-time 3D (WebGL): the road is laid out from the same curvature the physics uses, with forest, rock walls, guardrails, distant ridges, sun and shadows, clear-coat car paint with sky reflections, headlights at night, wet-road reflections, fog and bloom. Graphics setting: 3D High, 3D Fast or Classic, with automatic step-down on slow devices
 - 16 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
   - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
