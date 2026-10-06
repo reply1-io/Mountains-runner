@@ -441,7 +441,7 @@ function driveAccel(car, st, thr, dt){
     if(rpm < car.redline * (thr > 0 ? 0.5 : 0.42) && down < car.redline * 0.9){ st.gear--; st.shiftT = car.shift * 0.6; rpm = rpmOf(car, st); }
   }
   let a = -car.kd * st.v * st.v - (st.v > 0.1 ? 0.015 * G : 0);
-  st.aDrive = 0; st.limiter = false;
+  st.aDrive = 0; st.limiter = false; st.spin = 0;
   if(car.snd && car.snd.turbo){
     // turbo lag: boost builds with revs and throttle, collapses when you lift
     const b = st.boost || 0, tgt = thr > 0.3 ? clamp((rpm / car.redline - 0.28) / 0.35, 0, 1) : st.als && rpm > car.redline * 0.3 ? 0.9 : 0;
@@ -451,7 +451,9 @@ function driveAccel(car, st, thr, dt){
     const x = st.gear === 1 ? Math.max(rpm, car.redline * 0.6) / car.redline : rpm / car.redline;
     if(st.gear === 1) rpm = Math.max(rpm, car.redline * 0.6 * thr);
     const pf = car.snd && car.snd.turbo ? 0.6 + 0.4 * (st.boost || 0) : 1;
-    st.aDrive = thr * Math.min(car.aTrac, car.peff * pf * powerFrac(x) / (car.m * Math.max(st.v, 2)));
+    const demand = car.peff * pf * powerFrac(x) / (car.m * Math.max(st.v, 2));
+    st.spin = thr > 0.6 ? clamp((demand / car.aTrac - 1.1) * (car.drive === 'AWD' ? 0.35 : 0.8), 0, 1) : 0;
+    st.aDrive = thr * Math.min(car.aTrac, demand);
     if(rpm >= car.redline){ st.aDrive = 0; st.limiter = true; }
     a += st.aDrive;
   } else if(thr <= 0) a -= 0.05 * G * (rpm / car.redline);
@@ -1042,6 +1044,7 @@ let skyOff = 0, hillOff = 0, treeOff = 0, shake = 0, flashT = 0, crashT = 0;
 let stats = {}, nextCurve = 0, routeEnd = 0, routeCurves = 0, scraping = false, skid = 0, offroad = false, braking = false;
 let cars = [], particles = [];
 const drv = {v: 0, gear: 1, shiftT: 0, rpm: 850};
+let tireF = 0, tireR = 0;
 let vyB = 0, yawR = 0, lonA = 0, escCut = 1, deltaVis = 0, tiltS = 0, escOn = 0;
 let psi = 0, kCar = 0, thrP = 0, brakeP = 0, latG = 0, lonG = 0, locked = false, under = 0, wheelS = 0, yawX = 0;
 const input = {left: false, right: false, gas: false, brake: false};
@@ -1181,7 +1184,56 @@ class EngineGen {
     return o * this.vol;
   }
 }
+// Tyre squeal: the tread sticks and lets go hundreds of times a second (a jittery sawtooth). Each of the
+// four contact patches slips at its own slightly different rate, which gives the chorus and the chirps;
+// tread-block resonances shape it, and scrub hiss plus a low roar ride underneath. Locked wheels skid
+// lower and rougher; wet roads hiss instead of squealing.
+class TireGen {
+  constructor(sr){
+    this.sr = sr; this.seed = 9137; this.vol = 0; this.p = {f: 0, r: 0, lock: 0, spin: 0, v: 0, wet: 0};
+    this.s = {f: 0, r: 0, lock: 0, spin: 0};
+    this.vo = [-0.034, 0.013, -0.009, 0.028].map(d => ({ph: 0, w: 0, am: 0.5, d}));
+    this.bp = [[950, 6, 1], [2150, 7, 0.55], [1450, 5, 0.6], [3300, 4, 0.25]].map(([f, q, g]) => this.mk(f, q, g));
+    this.lp = 0; this.hp = [0, 0]; this.jud = 0;
+  }
+  mk(f, q, g){ const w0 = 2 * Math.PI * f / this.sr, al = Math.sin(w0) / (2 * q), a0 = 1 + al; return {b0: al / a0, b2: -al / a0, a1: -2 * Math.cos(w0) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0, g}; }
+  rnd(){ let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 4294967296; }
+  set(p){ this.p = p; this.vol = p.vol; }
+  sample(){
+    const p = this.p, s = this.s, k = 0.0025;
+    s.f += (p.f - s.f) * k; s.r += (p.r - s.r) * k; s.lock += (p.lock - s.lock) * k; s.spin += (p.spin - s.spin) * k;
+    const sr = this.sr, n = this.rnd() * 2 - 1;
+    let sq = 0, slipMax = 0;
+    for(let i = 0; i < 4; i++){
+      const vo = this.vo[i], a = i < 2 ? Math.max(s.f, s.lock, p.fwdSpin ? s.spin : 0) : Math.max(s.r, s.lock * 0.6, p.fwdSpin ? 0 : s.spin);
+      slipMax = Math.max(slipMax, a);
+      vo.w = Math.max(-0.09, Math.min(0.09, (vo.w + (this.rnd() - 0.5) * 0.006) * 0.9996));
+      vo.am += (this.rnd() - vo.am) * 0.0018;
+      if(a < 0.003) continue;
+      const locked = s.lock > 0.3;
+      const f = ((locked ? 470 : 780) + 320 * a + p.v * 1.4) * (1 + vo.d + vo.w);
+      vo.ph += f / sr; if(vo.ph >= 1) vo.ph -= 1;
+      const saw = 1 - 2 * vo.ph + (vo.ph < 0.04 ? 0.6 : 0);
+      sq += saw * a * (0.35 + 1.1 * vo.am * vo.am);
+    }
+    if(p.wet) sq *= 0.08;
+    let y = 0;
+    for(const b of this.bp){ const o = b.b0 * sq + b.b2 * b.x2 - b.a1 * b.y1 - b.a2 * b.y2; b.x2 = b.x1; b.x1 = sq; b.y2 = b.y1; b.y1 = o; y += o * b.g; }
+    // scrub hiss (bright) and rubber roar (dark); a locked tyre judders
+    const hpv = n - this.hp[0] + 0.94 * this.hp[1]; this.hp[0] = n; this.hp[1] = hpv;
+    this.lp += (n - this.lp) * 0.06;
+    this.jud += 22 / sr; if(this.jud >= 1) this.jud -= 1;
+    const speed = Math.min(1.2, p.v / 50);
+    const hiss = hpv * (slipMax * 0.22 + (p.wet ? 0.05 + speed * 0.06 : 0));
+    const roar = this.lp * (slipMax * 0.9 * speed + s.lock * (this.jud < 0.5 ? 1.1 : 0.4) * speed);
+    return (y * 0.55 + hiss + roar) * this.vol;
+  }
+}
 if(typeof registerProcessor !== 'undefined'){
+  registerProcessor('tires', class extends AudioWorkletProcessor {
+    constructor(){ super(); this.g = new TireGen(sampleRate); this.port.onmessage = e => this.g.set(e.data); }
+    process(_, outputs){ const o = outputs[0][0]; for(let i = 0; i < o.length; i++) o[i] = this.g.sample(); return true; }
+  });
   registerProcessor('engine', class extends AudioWorkletProcessor {
     constructor(){ super(); this.g = new EngineGen(sampleRate); this.port.onmessage = e => { if(e.data.cfg) this.g.config(e.data.cfg); else this.g.set(e.data); }; }
     process(_, outputs){ const o = outputs[0][0]; for(let i = 0; i < o.length; i++) o[i] = this.g.sample(); return true; }
@@ -1222,11 +1274,11 @@ const Snd = {
     // engine node: AudioWorklet where available, script processor otherwise
     this.eng = a.createGain(); this.eng.gain.value = 1; this.eng.connect(this.master);
     const fallback = () => {
-      const Gen = new Function(ENGINE_SRC + '; return EngineGen;')();
-      this.gen = new Gen(a.sampleRate);
+      const G2 = new Function(ENGINE_SRC + '; return {EngineGen, TireGen};')();
+      this.gen = new G2.EngineGen(a.sampleRate); this.tgen = new G2.TireGen(a.sampleRate);
       const sp = a.createScriptProcessor(1024, 0, 1);
-      sp.onaudioprocess = e => { const o = e.outputBuffer.getChannelData(0); for(let i = 0; i < o.length; i++) o[i] = this.gen.sample(); };
-      sp.connect(this.eng); this.node = sp; this.post = m => m.cfg ? this.gen.config(m.cfg) : this.gen.set(m);
+      sp.onaudioprocess = e => { const o = e.outputBuffer.getChannelData(0); for(let i = 0; i < o.length; i++) o[i] = this.gen.sample() + this.tgen.sample(); };
+      sp.connect(this.eng); this.node = sp; this.post = m => m.cfg ? this.gen.config(m.cfg) : this.gen.set(m); this.tpost = m => this.tgen.set(m);
       this.ready();
     };
     try{
@@ -1234,7 +1286,10 @@ const Snd = {
         const url = URL.createObjectURL(new Blob([ENGINE_SRC], {type: 'application/javascript'}));
         a.audioWorklet.addModule(url).then(() => {
           const n = new AudioWorkletNode(a, 'engine', {numberOfInputs: 0, outputChannelCount: [1]});
-          n.connect(this.eng); this.node = n; this.post = m => n.port.postMessage(m); this.ready();
+          n.connect(this.eng); this.node = n; this.post = m => n.port.postMessage(m);
+          const tn = new AudioWorkletNode(a, 'tires', {numberOfInputs: 0, outputChannelCount: [1]});
+          tn.connect(this.master); this.tpost = m => tn.port.postMessage(m);
+          this.ready();
         }).catch(fallback);
       } else fallback();
     }catch(e){ fallback(); }
@@ -1247,12 +1302,6 @@ const Snd = {
     this.whg = a.createGain(); this.whg.gain.value = 0; this.whn.connect(this.whbp); this.whbp.connect(this.whg); this.whg.connect(this.master);
     this.ts = 0;
     // tyres: tonal squeal with warble plus scrub noise
-    this.sq = a.createOscillator(); this.sq.type = 'triangle'; this.sq.frequency.value = 900;
-    this.lfo = a.createOscillator(); this.lfo.frequency.value = 7; this.lfog = a.createGain(); this.lfog.gain.value = 45;
-    this.lfo.connect(this.lfog); this.lfog.connect(this.sq.frequency);
-    this.sqg = a.createGain(); this.sqg.gain.value = 0; this.sq.connect(this.sqg); this.sqg.connect(this.master);
-    this.sn = noise(); this.sbp = a.createBiquadFilter(); this.sbp.type = 'bandpass'; this.sbp.frequency.value = 1700; this.sbp.Q.value = 3;
-    this.sg = a.createGain(); this.sg.gain.value = 0; this.sn.connect(this.sbp); this.sbp.connect(this.sg); this.sg.connect(this.master);
     // wind, gravel, rain
     this.wn = noise(); this.wlp = a.createBiquadFilter(); this.wlp.type = 'lowpass'; this.wlp.frequency.value = 700;
     this.wg = a.createGain(); this.wg.gain.value = 0; this.wn.connect(this.wlp); this.wlp.connect(this.wg); this.wg.connect(this.master);
@@ -1260,7 +1309,7 @@ const Snd = {
     this.gg = a.createGain(); this.gg.gain.value = 0; this.gn.connect(this.glp); this.glp.connect(this.gg); this.gg.connect(this.master);
     this.rn = noise(); this.rhp = a.createBiquadFilter(); this.rhp.type = 'highpass'; this.rhp.frequency.value = 2500;
     this.rg = a.createGain(); this.rg.gain.value = 0; this.rn.connect(this.rhp); this.rhp.connect(this.rg); this.rg.connect(this.master);
-    for(const o of [this.tw, this.tw2, this.sq, this.lfo]) o.start();
+    for(const o of [this.tw, this.tw2]) o.start();
     this.lastThr = 0;
   },
   ready(){ this.voiceFor = null; if(this.car) this.voice(this.car); },
@@ -1293,11 +1342,9 @@ const Snd = {
     } else this.twg.gain.setTargetAtTime(0, t, 0.05);
     this.lastThr = thr;
   },
-  road(skid, mphV, offroad, on, wet){
+  road(tire, mphV, offroad, on, wet){
     if(!this.a) return; const t = this.a.currentTime;
-    this.sqg.gain.setTargetAtTime(on && !wet ? skid * 0.03 : 0, t, 0.08);
-    this.sq.frequency.setTargetAtTime(780 + skid * 260, t, 0.1);
-    this.sg.gain.setTargetAtTime(on ? skid * (wet ? 0.03 : 0.07) : 0, t, 0.08);
+    if(this.tpost) this.tpost(Object.assign({v: mphV, wet: wet ? 1 : 0, vol: on ? 0.32 : 0}, tire));
     this.wg.gain.setTargetAtTime(on ? Math.min(0.25, Math.pow(mphV / 90, 2) * 0.08) : 0, t, 0.1);
     this.gg.gain.setTargetAtTime(on && offroad ? Math.min(0.2, mphV / 100) : 0, t, 0.05);
     this.rg.gain.setTargetAtTime(on && wet ? 0.03 + Math.min(0.08, mphV / 600) : 0, t, 0.2);
@@ -1442,6 +1489,7 @@ function update(dt){
     if(crashT <= 0){ playerX = 0.5; psi = 0; }
   }
   sat = Math.max(satF, satR);
+  tireF = drv.v > 3 ? clamp((satF - 1.15) / 1.4, 0, 1) : 0; tireR = drv.v > 3 ? clamp((satR - 1.15) / 1.4, 0, 1) : 0;
   under = Math.max(0, satF - 1.3) - Math.max(0, satR - 1.3);
   const betaNow = Math.atan2(vyB, Math.max(drv.v, 3));
   if(crashT <= 0 && !attract && state === 'race' && (Math.abs(betaNow) > 0.75 || Math.abs(psi) > 1.25)) crash('Spun out');
@@ -1450,6 +1498,7 @@ function update(dt){
   latG = ayAvg / G; lonG = axAvg / G;
   if(!attract && state === 'race') stats.maxG = Math.max(stats.maxG, Math.abs(latG));
   skid = drv.v > 4 ? clamp(Math.max((sat - 1.6) * 0.8, locked ? 0.8 : 0), 0, 1) : 0;
+  skid = Math.max(skid, (drv.spin || 0) * 0.8);
 
   // guardrails: glancing blows scrape, square hits wreck
   if(ps.rail && Math.sign(playerX) === ps.rail && Math.abs(playerX) > 1.13){
@@ -1545,7 +1594,7 @@ function update(dt){
   Snd.voice(car);
   const revving = state === 'countdown' && input.gas;
   Snd.engine(drv.shiftT > 0 ? drv.rpm * 0.9 : drv.rpm, revving ? 1 : drv.shiftT > 0 ? 0 : thrP * escCut, !quiet, (thrP > 0.5 || revving) && drv.rpm >= car.redline * 0.985, drv.boost || 0);
-  Snd.road(skid, mph, offroad && mph > 5, !quiet, settings.road === 'wet');
+  Snd.road({f: offroad ? 0 : tireF, r: offroad ? 0 : tireR, lock: locked && !offroad && mph > 5 ? 1 : 0, spin: offroad ? 0 : (drv.spin || 0), fwdSpin: car.drive === 'FWD'}, mph, offroad && mph > 5, !quiet, settings.road === 'wet');
 }
 function playerW(){ return CAR_W / CAM_H * W / 2; }
 function autopilot(ps, car){
@@ -2240,7 +2289,7 @@ async function boot(){
   addEventListener('resize', () => { resize(); });
   requestAnimationFrame(frame);
 }
-if(location.hash === '#debug') window.dragonDebug = {jump(mi){ position = startZ + mi * UPM - PLAYER_Z; }, get state(){ return state; }, cars: CARS, sim060, get drv(){ return {v: drv.v, gear: drv.gear, rpm: drv.rpm, psi, playerX, vyB, yawR, latG, skid, steer, kRoad: segAt(position + PLAYER_Z).curve / CURVE_R, delta: deltaVis, brakeP, thrP}; }, input, segM: () => SEG * 1609.34 / UPM, allow(f){ const car = player.car, ps = segAt(position + PLAYER_Z), segM = SEG * 1609.34 / UPM, v = drv.v, mu = car.grip * G, bg = car.brakeG * G * 0.8; let al = 40, d = 0; for(let k = 0; k < 300; k++){ const s = segments[ps.index + k]; if(!s) break; const kk = Math.abs(s.curve) / CURVE_R; if(kk > 1e-3) al = Math.min(al, Math.sqrt(f * mu / kk + 2 * bg * d)); d += segM; } return al; }, get wrecks(){ return stats.wrecks; }};
+if(location.hash === '#debug') window.dragonDebug = {jump(mi){ position = startZ + mi * UPM - PLAYER_Z; }, get state(){ return state; }, cars: CARS, sim060, get drv(){ return {v: drv.v, gear: drv.gear, rpm: drv.rpm, psi, playerX, vyB, yawR, latG, skid, steer, kRoad: segAt(position + PLAYER_Z).curve / CURVE_R, delta: deltaVis, brakeP, thrP}; }, input, segM: () => SEG * 1609.34 / UPM, allow(f){ const car = player.car, ps = segAt(position + PLAYER_Z), segM = SEG * 1609.34 / UPM, v = drv.v, mu = car.grip * G, bg = car.brakeG * G * 0.8; let al = 40, d = 0; for(let k = 0; k < 300; k++){ const s = segments[ps.index + k]; if(!s) break; const kk = Math.abs(s.curve) / CURVE_R; if(kk > 1e-3) al = Math.min(al, Math.sqrt(f * mu / kk + 2 * bg * d)); d += segM; } return al; }, get wrecks(){ return stats.wrecks; }, snd: Snd};
 boot();
 })();
 </script>
