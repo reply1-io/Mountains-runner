@@ -10,6 +10,7 @@ Open `index.html` in any phone or desktop browser. No build step. The 3D graphic
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
   - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), BMW 3.0 CSL "Batmobile", Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
+- Rally-game look: overcast default light, close high chase camera, big progress readout, red and white chevrons on tight bends.
 - Liveries for every car (twin stripes, rally stripe, BMW M stripes, race numbers), see-through glass with a modeled interior and driver, home-market licence plates, and an analog rev counter.
 - Realistic driving model: power, aero drag and gearing fitted to each car's real 0-60 and top speed; tire grip shared between braking and cornering (friction circle); no-ABS cars lose steering under hard braking; real road grades
 - Engine sound from a physical exhaust model: every cylinder fires in the car's real firing order into a modeled exhaust pipe and muffler, plus turbo whistle and blow-off, supercharger whine and overrun crackle

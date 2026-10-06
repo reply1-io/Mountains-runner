@@ -10,7 +10,7 @@
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Racing+Sans+One&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,700&family=Racing+Sans+One&display=swap">
 <style>
 /* Layout: full-bleed road canvas; HUD hugs the corners; menus are mist-glass panels floating over the live road */
 :root{
@@ -43,9 +43,17 @@ button:focus-visible{outline:2px solid var(--sign);outline-offset:2px}
 .hud-top{position:absolute;left:calc(env(safe-area-inset-left,0px) + 12px);right:calc(env(safe-area-inset-right,0px) + 12px);top:calc(env(safe-area-inset-top,0px) + 10px);display:flex;gap:10px;align-items:flex-start}
 .chip{background:rgba(8,14,20,.62);border:1px solid var(--line);border-radius:10px;padding:6px 10px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .lbl{font-size:10px;letter-spacing:.14em;color:var(--mist-dim);text-transform:uppercase;font-weight:600}
+.bigprog{font-style:italic;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.45);line-height:1;pointer-events:none}
+.bigprog .pp{font-size:44px;letter-spacing:-.02em}.bigprog .pp b{font-size:inherit}
+.bigprog .pl{font-size:17px;letter-spacing:.02em;text-transform:uppercase;margin-top:1px}
+.bigprog .time{margin-top:8px;display:flex;gap:14px;align-items:baseline;background:rgba(10,12,12,.62);padding:5px 14px 5px 12px;transform:skewX(-12deg);border-radius:4px;white-space:nowrap}
+.bigprog .time>*{transform:skewX(12deg)}.bigprog .time b{font-size:17px!important;display:inline}.bigprog .time small{display:none}
+body.portrait .bigprog .pp{font-size:34px}
+body.portrait .progress .row>span:nth-child(2){display:none}
 .time b{display:block;font-size:22px;line-height:1.05;font-variant-numeric:tabular-nums;font-weight:700}
 .time small{display:block;font-size:11px;color:var(--mist-dim);font-variant-numeric:tabular-nums}
-.progress{flex:1;min-width:0;max-width:440px;margin-inline:auto}
+.progress{flex:1;min-width:0;max-width:440px;margin-inline:auto;background:rgba(8,12,14,.38);border-color:transparent}
+.pct{display:none}
 .progress .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;white-space:nowrap}
 .progress #hMile{font-size:15px}
 .progress .row b{font-size:20px;font-variant-numeric:tabular-nums}
@@ -71,6 +79,8 @@ body:not(.portrait) .progress{margin-right:282px}
 .speedo span{font-size:12px;letter-spacing:.14em;color:var(--mist-dim);font-weight:600}
 #tachG{width:92px;height:92px;flex:none;margin:-6px -4px -6px 0}
 .speedo{width:auto;min-width:196px}
+body:not(.portrait) .speedo{background:rgba(10,12,12,.7);border:0;border-radius:6px 22px 6px 6px;transform:skewX(-6deg)}
+body:not(.portrait) .speedo>*{transform:skewX(6deg)}
 .tach{height:8px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:4px;position:relative}
 .tach i{position:absolute;inset:0 auto 0 0;width:0;background:var(--sign)}
 .spd-row{display:flex;gap:10px;align-items:center}
@@ -91,7 +101,7 @@ body:not(.wheelmode) .wheel,body.wheelmode #padBtns,body.tiltmode #padBtns{displ
 .ctl.sh{width:54px;height:54px;font-size:26px;font-weight:700;line-height:1}
 body:not(.manualbox) .shifter{display:none}
 .pad{display:flex;gap:12px;align-items:flex-end;pointer-events:auto}
-.ctl{width:78px;height:78px;border-radius:50%;background:rgba(10,18,26,.5);border:2px solid rgba(215,225,226,.35);display:grid;place-items:center;touch-action:none;transition:transform .06s,background .06s}
+.ctl{width:78px;height:78px;border-radius:50%;background:rgba(40,36,30,.34);border:0;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12),0 4px 14px rgba(0,0,0,.18);display:grid;place-items:center;touch-action:none;transition:transform .06s,background .06s}
 .ctl svg{width:30px;height:30px;fill:var(--mist)}
 .ctl.on{background:rgba(242,194,48,.35);border-color:var(--sign);transform:scale(.95)}
 .pedal{border-radius:14px;width:74px;height:104px;font-weight:700;font-size:12px;letter-spacing:.14em;flex-direction:column;align-content:end;padding-bottom:10px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.08) 0 3px,transparent 3px 12px),rgba(10,18,26,.55)}
@@ -200,7 +210,8 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
 
   <div id="hud" hidden>
     <div class="hud-top">
-      <div class="chip time"><span class="lbl">Time</span><b id="hTime">0:00.00</b><small id="hBest"></small></div>
+      <div class="bigprog"><div class="pp"><b id="hPctBig">0</b>%</div><div class="pl">Progress</div>
+        <div class="time"><span class="lbl">Time</span><b id="hTime">0:00.00</b><small id="hBest"></small></div></div>
       <div class="chip progress">
         <div class="row"><span><span class="lbl">Curve </span><b id="hCurve">0</b><span class="of"> / <span id="hCurveTot">318</span></span></span><span class="of"><b id="hMile">0.0</b> / <span id="hMileTot">11</span> mi</span><span class="of pct"><b id="hPct">0</b>% progress</span></div>
         <div class="bar"><i id="hBar"></i></div>
@@ -273,7 +284,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
           <dl class="stats" id="stats"></dl>
           <div class="opts">
             <div class="opt"><span>Route</span><div class="seg" data-opt="route"><button data-v="sprint">Sprint · 3 mi</button><button data-v="full">Full · 11 mi</button></div></div>
-            <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
+            <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="overcast">Overcast</button><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
             <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
             <div class="opt"><span>Gears</span><div class="seg" data-opt="gearbox"><button data-v="auto">Automatic</button><button data-v="manual">Manual</button></div></div>
             <div class="opt"><span>Anti-lag</span><div class="seg" data-opt="antilag"><button data-v="off">Off</button><button data-v="on">On (turbo cars)</button></div></div>
@@ -514,6 +525,7 @@ CARS.forEach(c => {
 const PAL = {
   fog:  {sky:['#93a8b2','#c3cfd0','#dde3df'], ridge:['#b2c0c2','#93a6aa','#6b7f7f'], fog:'#d4dcd9', fogD:7.5, grass:['#55613c','#4e5a37'], shoulder:['#7b7464','#726b5b'], road:['#5d6266','#595e62'], line:'#e9e5d9', yellow:'#e2b12f', rail:'#b4bcbf', dash:'#141c21', haze:'#d4dcd9'},
   gold: {sky:['#35517c','#c48a76','#f6c682'], ridge:['#8f7088','#5f5170','#34384a'], fog:'#e6b48c', fogD:3.6, grass:['#6a6a34','#61622f'], shoulder:['#8a7458','#80694e'], road:['#625b5c','#5d5758'], line:'#f3e8d2', yellow:'#f0b836', rail:'#cdbcab', dash:'#191512', haze:'#f2b98a', sun:true},
+  overcast:{sky:['#8d9696','#aeb0a5','#c4c1b2'], ridge:['#7c8578','#5f6a5c','#44503f'], fog:'#adb0a1', fogD:5.5, grass:['#4c5833','#475230'], shoulder:['#7a6c54','#72654e'], road:['#5c5953','#58554f'], line:'#e6e0cd', yellow:'#d8a82e', rail:'#a7aa9e', dash:'#151611', haze:'#b5b6a6'},
   night:{sky:['#02050d','#0a1326','#18243d'], ridge:['#18223a','#0f182a','#090e19'], fog:'#0c1322', fogD:3, grass:['#1d2619','#1a2216'], shoulder:['#2c2b29','#282725'], road:['#2c2f34','#292c31'], line:'#ddd9cf', yellow:'#d9aa2c', rail:'#80878c', dash:'#0b0f14', haze:'#18243d', night:true},
 };
 let pal = PAL.gold;
@@ -756,6 +768,17 @@ function diamond(g, cx, cy, r){
 }
 function arrowHead(g, x, y, ang, s){ g.save(); g.translate(x, y); g.rotate(ang); g.beginPath(); g.moveTo(s, 0); g.lineTo(-s * 0.6, -s * 0.85); g.lineTo(-s * 0.6, s * 0.85); g.closePath(); g.fill(); g.restore(); }
 const signCache = {};
+function chevronBoard(dir){
+  const key = 'chev' + dir;
+  if(signCache[key]) return signCache[key];
+  return signCache[key] = mk(160, 150, (g, w, h) => {
+    g.fillStyle = '#5b5f62'; g.fillRect(24, 70, 7, h - 70); g.fillRect(w - 31, 70, 7, h - 70);
+    g.fillStyle = '#f2efe6'; g.fillRect(6, 8, w - 12, 72); g.fillStyle = '#c8202a';
+    for(let k = 0; k < 3; k++){ const x = 22 + k * 44, d = -dir;
+      g.beginPath(); g.moveTo(x + 18 - d * 12, 12); g.lineTo(x + 18 - d * 12 + 18, 12); g.lineTo(x + 18 + d * 14 + 9, 44); g.lineTo(x + 18 - d * 12 + 18, 76); g.lineTo(x + 18 - d * 12, 76); g.lineTo(x + 18 + d * 14 - 9, 44); g.closePath(); g.fill(); }
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(6, 74, w - 12, 6);
+  });
+}
 function curveSign(kind, dir, mph, plate){
   const key = kind + dir + mph + (plate || '');
   if(signCache[key]) return signCache[key];
@@ -946,6 +969,7 @@ function decorate(R, finishIndex){
     const adv = c.sev > 2.6 ? clamp(Math.floor(Math.sqrt(0.3 * G * CURVE_R / c.sev) / MPH / 5) * 5, 10, 35) : 0;
     if(c.sev > 4){ const off = -c.dir * 0.52; for(let k = c.start + 6; k < c.end - 6; k++) if(segments[k] && R() < 0.85) segments[k].marks = off; }
     addSprite(c.start - 16, {img: curveSign(kind, c.dir, adv), ww: 420, hit: 0.1}, 1.32);
+    if(c.sev > 4.2 && !c.cliff){ const cb = {img: chevronBoard(c.dir), ww: 420, hit: 0.1}; for(let k = c.start + 2; k < Math.min(c.end, c.start + 40); k += 6) addSprite(k, cb, -c.dir * 1.38); }
     if(c.photo){ const m = (c.start + c.end) >> 1; addSprite(m, SP.photo, -c.dir * 1.75); }
   }
   addSprite(startIndex, SP.bStart, 0);
@@ -1048,7 +1072,9 @@ function drawLayer(img, off, y){
 }
 
 /* ================= game state ================= */
-const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'gold', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', antilag: 'off', gfx: 'high', paints: {}, liveries: {}}, store.get('settings', {}));
+const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'overcast', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', antilag: 'off', gfx: 'high', paints: {}, liveries: {}}, store.get('settings', {}));
+// the rally-game look became the default once; players can still pick another time of day
+if(!settings.look2){ settings.look2 = 1; settings.tod = 'overcast'; }
 const saveSettings = () => store.set('settings', settings);
 let bests = store.get('bests', {});
 let player = null;
@@ -2279,7 +2305,7 @@ function drawHood(){
 }
 
 /* ================= HUD + UI ================= */
-const hud = {pct: $('#hPct'), time: $('#hTime'), best: $('#hBest'), curve: $('#hCurve'), curveTot: $('#hCurveTot'), mile: $('#hMile'), mileTot: $('#hMileTot'), bar: $('#hBar'), speed: $('#hSpeed'), tach: $('#hTach'), gear: $('#hGear')};
+const hud = {pctBig: $('#hPctBig'), pct: $('#hPct'), time: $('#hTime'), best: $('#hBest'), curve: $('#hCurve'), curveTot: $('#hCurveTot'), mile: $('#hMile'), mileTot: $('#hMileTot'), bar: $('#hBar'), speed: $('#hSpeed'), tach: $('#hTach'), gear: $('#hGear')};
 const last = {};
 function setText(el, key, v){ if(last[key] !== v){ last[key] = v; el.textContent = v; } }
 function updateHud(){
@@ -2289,7 +2315,7 @@ function updateHud(){
   setText(hud.mile, 'm', (d / UPM).toFixed(1));
   setText(hud.curve, 'c', String(Math.min(nextCurve, routeCurves)));
   const pct = (d / (routeEnd - startZ) * 100).toFixed(1) + '%';
-  if(last.p !== pct){ last.p = pct; hud.bar.style.width = pct; hud.pct.textContent = Math.floor(parseFloat(pct)); }
+  if(last.p !== pct){ last.p = pct; hud.bar.style.width = pct; hud.pct.textContent = hud.pctBig.textContent = Math.floor(parseFloat(pct)); }
   setText(hud.speed, 's', String(Math.round(mph)));
   const car = player.car;
   drawTach(car);
@@ -2712,13 +2738,14 @@ function makeGL(T, X){
   const LOOK = {
     gold: {top: '#3d5d8c', mid: '#f3be8c', bot: '#6a5a4c', fog: '#dcae8a', fogD: 0.0038, sunCol: '#ffd6a6', sunI: 3.2, sunEl: 0.32, sunAz: 0.9, hemiS: '#ffe3c4', hemiG: '#5a4a34', hemiI: 1.6, exp: 1.15, stars: 0},
     fog: {top: '#8fa3ad', mid: '#c9d3d4', bot: '#8a9590', fog: '#c7d0cf', fogD: 0.012, sunCol: '#fffaf0', sunI: 1.4, sunEl: 0.8, sunAz: 0.3, hemiS: '#eef3f5', hemiG: '#606b55', hemiI: 2.2, exp: 1.05, stars: 0},
+    overcast: {top: '#97a09f', mid: '#c4c2b4', bot: '#6c6b5a', fog: '#a7aa9b', fogD: 0.0085, sunCol: '#fff1d8', sunI: 0.6, sunEl: 0.85, sunAz: 0.5, hemiS: '#ece7d6', hemiG: '#4e4935', hemiI: 1.7, exp: 1.08, bloomT: 0.95, stars: 0},
     night: {top: '#02040b', mid: '#0c1426', bot: '#05070b', fog: '#070b14', fogD: 0.0065, sunCol: '#8fa6d6', sunI: 0.25, sunEl: 0.7, sunAz: -0.6, hemiS: '#3a4a6c', hemiG: '#0b0e12', hemiI: 0.35, exp: 1.2, stars: 1},
   };
   let look = LOOK.gold;
   const setLook = () => {
     look = LOOK[settings.tod] || LOOK.gold;
     skyMat.uniforms.top.value.set(look.top); skyMat.uniforms.mid.value.set(look.mid); skyMat.uniforms.bot.value.set(look.bot);
-    skyMat.uniforms.sunCol.value.set(look.sunCol); skyMat.uniforms.sunAmt.value = settings.tod === 'night' ? 0.15 : 1;
+    skyMat.uniforms.sunCol.value.set(look.sunCol); skyMat.uniforms.sunAmt.value = settings.tod === 'night' ? 0.15 : settings.tod === 'overcast' ? 0 : 1;
     const sd = new T.Vector3(Math.cos(look.sunAz) * Math.cos(look.sunEl), Math.sin(look.sunEl), Math.sin(look.sunAz) * Math.cos(look.sunEl)); skyMat.uniforms.sunDir.value.copy(sd); look.sd = sd;
     const wet = settings.road === 'wet';
     scene.fog = new T.FogExp2(look.fog, look.fogD * (wet ? 1.7 : 1));
@@ -2855,8 +2882,8 @@ function makeGL(T, X){
     geo.setIndex(all); geo.computeVertexNormals();
     geoCache.set(car.id, geo); return geo;
   };
-  const glassMat = new T.MeshPhysicalMaterial({color: 0x0b1116, metalness: 0.05, roughness: 0.04, clearcoat: 1, envMapIntensity: 0.6, transparent: true, opacity: 0.42, depthWrite: false});
-  const innerMat = new T.MeshStandardMaterial({color: 0x161618, roughness: 0.95, side: T.BackSide}), innerGlass = new T.MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0.12, side: T.BackSide, depthWrite: false});
+  const glassMat = new T.MeshPhysicalMaterial({color: 0x0b1116, metalness: 0.05, roughness: 0.04, clearcoat: 1, envMapIntensity: 0.6, transparent: true, opacity: 0.3, depthWrite: false});
+  const innerMat = new T.MeshStandardMaterial({color: 0x2e2c2a, roughness: 0.95, side: T.BackSide}), innerGlass = new T.MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0.12, side: T.BackSide, depthWrite: false});
   const trimMat = new T.MeshStandardMaterial({color: 0x121315, roughness: 0.55, metalness: 0.2});
   const underMat = new T.MeshStandardMaterial({color: 0x08080a, roughness: 1});
   const tyreMat = new T.MeshStandardMaterial({map: treadTex, roughness: 0.95});
@@ -2935,7 +2962,7 @@ function makeGL(T, X){
         rows.forEach((r, i) => { vi.push(r ? pos.length / 3 : -1); if(r) for(const p of r) pos.push(p[0], p[1], p[2]); });
         for(let i = 0; i < rows.length - 1; i++){ if(vi[i] < 0 || vi[i + 1] < 0) continue; const a = vi[i], b = vi[i + 1]; for(let k = 0; k < rows[i].length - 1; k++) idx.push(a + k, b + k, a + k + 1, a + k + 1, b + k, b + k + 1); }
         if(!idx.length) return; const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(pos), 3)); geo.setIndex(idx); geo.computeVertexNormals();
-        body.add(new T.Mesh(geo, new T.MeshPhysicalMaterial({color: col, roughness: 0.3, clearcoat: 1, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2})));
+        body.add(new T.Mesh(geo, new T.MeshPhysicalMaterial({color: col, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.25, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2})));
       };
       const lift = (x, y, m, k) => { const cy = (m.yB + m.y) / 2, l = Math.hypot(x, y - cy) || 1; return [x + x / l * k, y + (y - cy) / l * k, -m.z]; };
       if(LV.center) for(const [a, b] of LV.center) strip((ring, m) => { if(glassT(m.t) || m.t < 0.01 || m.t > 0.99) return null; const f = ringAt(ring); return [0, 0.5, 1].map(q => { const [x, y] = f(0.5 + lerp(a, b, q) * 0.25); return lift(x, y, m, 0.006); }); }, LV.col[0]);
@@ -2991,7 +3018,7 @@ function makeGL(T, X){
     m.root.rotation.y = window.__pvYaw != null ? window.__pvYaw : 2.4 + t * 0.4;
     for(const wh of m.wheels){ wh.pivot.rotation.y = wh.steer ? Math.sin(t * 0.8) * 0.3 : 0; }
     const dist = m.dims.len * 1.85;
-    PV.cm.position.set(0, 1.35, dist); PV.cm.lookAt(0, 0.6, 0);
+    PV.cm.position.set(0, window.__pvH || 1.35, dist); PV.cm.lookAt(0, 0.6, 0);
     PV.r.render(PV.sc, PV.cm);
   };
 
@@ -3046,7 +3073,7 @@ function makeGL(T, X){
   const setupComposer = (w, h) => {
     if(settings.gfx === 'low'){ comp = null; return; }
     comp = new X.EffectComposer(R); comp.addPass(new X.RenderPass(scene, cam));
-    bloom = new X.UnrealBloomPass(new T.Vector2(w / 2, h / 2), 0.55, 0.45, 0.82); comp.addPass(bloom);
+    bloom = new X.UnrealBloomPass(new T.Vector2(w / 2, h / 2), 0.55, 0.45, look.bloomT || 0.82); comp.addPass(bloom);
     comp.addPass(new X.OutputPass());
   };
   setLook();
@@ -3068,7 +3095,7 @@ function makeGL(T, X){
     preview(car, paint, now){ previewRender(car, paint, now); if(PV) PV.c.style.display = 'block'; },
     hidePreview(){ if(PV) PV.c.style.display = 'none'; },
     render(dt){
-      if(lastPal !== settings.tod || lastRoad !== settings.road){ lastPal = settings.tod; lastRoad = settings.road; setLook(); }
+      if(lastPal !== settings.tod || lastRoad !== settings.road){ lastPal = settings.tod; lastRoad = settings.road; setLook(); if(bloom) bloom.threshold = look.bloomT || 0.82; }
       ensurePlayer();
       const car = player.car, u = position + PLAYER_Z, P0 = at(u, playerX);
       const pc = Math.floor(u / SEG / CH);
@@ -3088,10 +3115,12 @@ function makeGL(T, X){
       if(first){ camHead = vh; first = false; }
       camHead += (vh - camHead) * Math.min(1, dt * 4.5);
       const fx = Math.sin(camHead), fz = -Math.cos(camHead);
+      // the chase view uses a longer lens so the car fills the frame, like a rally game's camera
+      const fov = view === 'chase' ? 46 : 60; if(cam.fov !== fov){ cam.fov = fov; cam.updateProjectionMatrix(); }
       if(view === 'chase'){
-        const want = tmpV.set(P0.x - fx * 6.8, P0.y + 3.0, P0.z - fz * 6.8);
+        const want = tmpV.set(P0.x - fx * 5.6, P0.y + 3.0, P0.z - fz * 5.6);
         camPos.lerp(want, Math.min(1, dt * 10)); if(camPos.distanceTo(want) > 10) camPos.copy(want);
-        cam.position.copy(camPos); cam.lookAt(P0.x + fx * 4, P0.y + 0.9, P0.z + fz * 4);
+        cam.position.copy(camPos); cam.lookAt(P0.x + fx * 5.5, P0.y + 0.2, P0.z + fz * 5.5);
       } else {
         const off = view === 'cockpit' ? (car.rhd ? 0.37 : -0.37) : 0, rx = Math.cos(head), rz = Math.sin(head), hf = Math.sin(head), hz = -Math.cos(head);
         const fwd = view === 'cockpit' ? -0.1 : 0.9, up = view === 'cockpit' ? 1.12 : 1.2;
@@ -3172,7 +3201,7 @@ async function boot(){
   requestAnimationFrame(frame);
   initGL();
 }
-if(location.hash === '#debug') window.dragonDebug = {jump(mi){ position = startZ + mi * UPM - PLAYER_Z; }, get state(){ return state; }, cars: CARS, sim060, get drv(){ return {v: drv.v, gear: drv.gear, rpm: drv.rpm, psi, playerX, vyB, yawR, latG, skid, steer, kRoad: segAt(position + PLAYER_Z).curve / CURVE_R, delta: deltaVis, brakeP, thrP}; }, input, segM: () => SEG * 1609.34 / UPM, allow(f){ const car = player.car, ps = segAt(position + PLAYER_Z), segM = SEG * 1609.34 / UPM, v = drv.v, mu = car.grip * G, bg = car.brakeG * G * 0.8; let al = 40, d = 0; for(let k = 0; k < 300; k++){ const s = segments[ps.index + k]; if(!s) break; const kk = Math.abs(s.curve) / CURVE_R; if(kk > 1e-3) al = Math.min(al, Math.sqrt(f * mu / kk + 2 * bg * d)); d += segM; } return al; }, get wrecks(){ return stats.wrecks; }, snd: Snd, get gl(){ return GL; }};
+if(location.hash === '#debug') window.dragonDebug = {jump(mi){ position = startZ + mi * UPM - PLAYER_Z; }, get state(){ return state; }, cars: CARS, sim060, loft, carDims, get drv(){ return {v: drv.v, gear: drv.gear, rpm: drv.rpm, psi, playerX, vyB, yawR, latG, skid, steer, kRoad: segAt(position + PLAYER_Z).curve / CURVE_R, delta: deltaVis, brakeP, thrP}; }, input, segM: () => SEG * 1609.34 / UPM, allow(f){ const car = player.car, ps = segAt(position + PLAYER_Z), segM = SEG * 1609.34 / UPM, v = drv.v, mu = car.grip * G, bg = car.brakeG * G * 0.8; let al = 40, d = 0; for(let k = 0; k < 300; k++){ const s = segments[ps.index + k]; if(!s) break; const kk = Math.abs(s.curve) / CURVE_R; if(kk > 1e-3) al = Math.min(al, Math.sqrt(f * mu / kk + 2 * bg * d)); d += segM; } return al; }, get wrecks(){ return stats.wrecks; }, snd: Snd, get gl(){ return GL; }};
 boot();
 })();
 </script>
