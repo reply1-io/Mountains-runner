@@ -829,7 +829,7 @@ function makePhotographer(){ return mk(90, 160, (g, w, h) => {
   g.fillStyle = '#6d4c2f'; g.fillRect(w * 0.28, h * 0.09, w * 0.28, h * 0.06);
   g.fillStyle = '#111'; rr(g, w * 0.48, h * 0.17, w * 0.3, h * 0.11, 4); g.fill(); g.fillStyle = '#333'; g.fillRect(w * 0.76, h * 0.19, w * 0.16, h * 0.07);
 }); }
-function makeBanner(top, sub, check){ return mk(680, 300, (g, w, h) => {
+function makeBanner(top, sub, check){ return mk(680, 400, (g, w, h) => {
   g.fillStyle = '#2b2e31'; g.fillRect(10, 30, 16, h - 30); g.fillRect(w - 26, 30, 16, h - 30);
   g.fillStyle = '#f2c230'; g.fillRect(10, 24, w - 20, 92);
   if(check){ const s = 14; for(let x = 10; x < w - 10; x += s) for(let r = 0; r < 2; r++){ g.fillStyle = ((x / s + r) | 0) % 2 ? '#111' : '#f4f2ea'; g.fillRect(x, 116 + r * s, s, s); } }
@@ -2182,7 +2182,7 @@ function drawPlayer(){
   const beta = Math.atan2(vyB, Math.max(drv.v, 3));
   const yaw = clamp(psi + beta * 0.9 + yawR * 0.2, -0.75, 0.75) + (crashT > 0 ? Math.sin(crashT * 9) * 0.12 : 0);
   const roll = clamp(-latG, -1.2, 1.2) * 0.012;
-  const res = render3D(ctx, player.car, {camH: 1.6, camD: 6.2, cx: W / 2 - yawX, gy: VH * 0.95 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint, spin: wheelRot, v: drv.v * (1 + (drv.spin || 0) * 2)});
+  const res = render3D(ctx, player.car, {camH: 2.4, camD: 6.6, cx: W / 2 - yawX, gy: VH * 0.95 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint, spin: wheelRot, v: drv.v * (1 + (drv.spin || 0) * 2)});
   playerLights = res.lights;
   if(flameT > 0){
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -3089,9 +3089,9 @@ function makeGL(T, X){
       camHead += (vh - camHead) * Math.min(1, dt * 4.5);
       const fx = Math.sin(camHead), fz = -Math.cos(camHead);
       if(view === 'chase'){
-        const want = tmpV.set(P0.x - fx * 6.2, P0.y + 2.15, P0.z - fz * 6.2);
+        const want = tmpV.set(P0.x - fx * 6.8, P0.y + 3.0, P0.z - fz * 6.8);
         camPos.lerp(want, Math.min(1, dt * 10)); if(camPos.distanceTo(want) > 10) camPos.copy(want);
-        cam.position.copy(camPos); cam.lookAt(P0.x + fx * 3, P0.y + 0.95, P0.z + fz * 3);
+        cam.position.copy(camPos); cam.lookAt(P0.x + fx * 4, P0.y + 0.9, P0.z + fz * 4);
       } else {
         const off = view === 'cockpit' ? (car.rhd ? 0.37 : -0.37) : 0, rx = Math.cos(head), rz = Math.sin(head), hf = Math.sin(head), hz = -Math.cos(head);
         const fwd = view === 'cockpit' ? -0.1 : 0.9, up = view === 'cockpit' ? 1.12 : 1.2;
