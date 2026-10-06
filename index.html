@@ -283,7 +283,8 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
         <div class="g-spec">
           <dl class="stats" id="stats"></dl>
           <div class="opts">
-            <div class="opt"><span>Route</span><div class="seg" data-opt="route"><button data-v="sprint">Sprint · 3 mi</button><button data-v="full">Full · 11 mi</button></div></div>
+            <div class="opt"><span>Map</span><div class="seg" data-opt="map"><button data-v="dragon">Tail of the Dragon</button><button data-v="forest">Forest Stage</button></div></div>
+            <div class="opt"><span>Route</span><div class="seg" data-opt="route"><button data-v="sprint" id="rtSprint">Sprint · 3 mi</button><button data-v="full" id="rtFull">Full · 11 mi</button></div></div>
             <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="overcast">Overcast</button><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
             <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
             <div class="opt"><span>Gears</span><div class="seg" data-opt="gearbox"><button data-v="auto">Automatic</button><button data-v="manual">Manual</button></div></div>
@@ -369,7 +370,9 @@ const SEG = 200, ROAD = 1400, CAM_H = 1000, FOV = 100, RUMBLE = 3, RAIL_H = 330;
 const CAM_DEPTH = 1 / Math.tan((FOV / 2) * Math.PI / 180);
 const PLAYER_Z = CAM_H * CAM_DEPTH;
 const CAR_W = 760, MOTO_W = 300, PW = CAR_W / ROAD;
-const TOTAL_CURVES = 318, FULL_MI = 11, SPRINT_MI = 3;
+// the two maps: Tail of the Dragon (US 129) and a gravel forest rally stage
+let TOTAL_CURVES = 318, FULL_MI = 11, SPRINT_MI = 3;
+const isForest = () => settings.map === 'forest';
 const DRAW = 240;
 
 /* ================= cars (factory figures, approximate) ================= */
@@ -880,9 +883,10 @@ function buildSprites(){
   SP.tabcat = {img: makeBoard([{t:'TABCAT CREEK', size:40}, {t:'BRIDGE', size:28}], {bg:'#1f5e3b', fg:'#f4f6f2', border:'#e8eee9', post:'#8f979c'}), ww: 1600, hit: 0.3};
   SP.limit = {img: makeReg(['SPEED', 'LIMIT', '30'], [20, 20, 54]), ww: 380, hit: 0.1};
   SP.trucks = {img: makeReg(['TRUCKS OVER', '30 FT', 'PROHIBITED'], [15, 26, 15]), ww: 420, hit: 0.1};
-  SP.bStart = {img: makeBanner('DEALS GAP', 'US 129 · START · ELEV. 1,986 FT', false), ww: ROAD * 2.75, hit: 0};
-  SP.bSprint = {img: makeBanner('3 MILE MARK', 'SPRINT FINISH', true), ww: ROAD * 2.75, hit: 0};
-  SP.bFinish = {img: makeBanner('FINISH', 'YOU RODE THE WHOLE DRAGON', true), ww: ROAD * 2.75, hit: 0};
+  const fo = isForest();
+  SP.bStart = {img: fo ? makeBanner('SS1 · PINE RIDGE', 'SPECIAL STAGE · START', false) : makeBanner('DEALS GAP', 'US 129 · START · ELEV. 1,986 FT', false), ww: ROAD * 2.75, hit: 0};
+  SP.bSprint = {img: makeBanner(fo ? '2 MILE MARK' : '3 MILE MARK', 'SPRINT FINISH', true), ww: ROAD * 2.75, hit: 0};
+  SP.bFinish = {img: makeBanner(fo ? 'STOP' : 'FINISH', fo ? 'FLYING FINISH · STAGE COMPLETE' : 'YOU RODE THE WHOLE DRAGON', true), ww: ROAD * 2.75, hit: 0};
   SP.glowW = makeGlow('rgba(255,244,210,1)'); SP.glowR = makeGlow('rgba(255,40,30,1)');
   // traffic
   traffic.length = 0;
@@ -920,21 +924,24 @@ function addSprite(i, sp, offset, scale){ const s = segments[i]; if(s) s.sprites
 
 function buildTrack(){
   segments = []; curves = [];
-  const R = rng(129);
+  const fo = isForest();
+  TOTAL_CURVES = fo ? 160 : 318; FULL_MI = fo ? 6 : 11; SPRINT_MI = fo ? 2 : 3;
+  const R = rng(fo ? 512 : 129);
   addRoad(0, 70, 0, 0, 0);
   startIndex = 50;
   let dir = 1;
   for(let i = 0; i < TOTAL_CURVES; i++){
     if(R() < 0.76) dir = -dir;
     const r = R();
-    let sev = r < 0.34 ? 1.8 + R() * 1.4 : r < 0.7 ? 3.2 + R() * 1.3 : 4.6 + R() * 1.7;
-    if(NAMED[i]) sev = Math.max(sev, 5.4);
+    let sev = fo ? (r < 0.25 ? 1.6 + R() * 1.4 : r < 0.6 ? 3 + R() * 1.4 : 4.4 + R() * 2) : r < 0.34 ? 1.8 + R() * 1.4 : r < 0.7 ? 3.2 + R() * 1.3 : 4.6 + R() * 1.7;
+    if(NAMED[i] && !fo) sev = Math.max(sev, 5.4);
     const enter = 12 + ((R() * 14) | 0), leave = 12 + ((R() * 14) | 0);
     const hold = (sev > 4.6 ? 10 : 18) + ((R() * (sev > 4.6 ? 26 : 40)) | 0);
     const s0 = segments.length;
-    addRoad(enter, hold, leave, dir * sev, (R() - 0.56) * 13);
-    const c = {i, start: s0, end: segments.length, dir, sev, name: NAMED[i] || null, rail: sev > 3.8 || R() < 0.3, cliff: R() < 0.45, photo: i % 23 === 11};
-    if(c.photo) c.rail = true;
+    addRoad(enter, hold, leave, dir * sev, (R() - 0.53) * (fo ? 6 : 13));
+    const c = fo ? {i, start: s0, end: segments.length, dir, sev, name: null, rail: false, cliff: false, photo: i % 7 === 3}
+      : {i, start: s0, end: segments.length, dir, sev, name: NAMED[i] || null, rail: sev > 3.8 || R() < 0.3, cliff: R() < 0.45, photo: i % 23 === 11};
+    if(c.photo && !fo) c.rail = true;
     curves.push(c);
     if(R() < 0.6) addRoad(0, 4 + ((R() * 22) | 0), 0, 0, (R() - 0.5) * 2);
   }
@@ -957,7 +964,7 @@ function decorate(R, finishIndex){
       if(R() < 0.55){
         const off = side * (1.45 + R() * R() * 4.8);
         if(i > startIndex - 30 && i < startIndex + 6 && Math.abs(off) < 2.6) continue;
-        const r = R(); addSprite(i, r < 0.4 ? pick(R, SP.pine) : r < 0.95 ? pick(R, SP.oak) : pick(R, SP.rock), off, r < 0.95 ? 0.7 + R() * 0.65 : 1);
+        const r = R(), pr = isForest() ? 0.85 : 0.4; addSprite(i, r < pr ? pick(R, SP.pine) : r < 0.95 ? pick(R, SP.oak) : pick(R, SP.rock), off, r < 0.95 ? 0.7 + R() * 0.65 : 1);
       }
     }
     if(R() < 0.04) addSprite(i, pick(R, SP.rock), (R() < 0.5 ? -1 : 1) * (1.5 + R() * 0.4));
@@ -968,11 +975,23 @@ function decorate(R, finishIndex){
     const kind = c.sev > 4.6 ? 'sharp' : 'curve';
     const adv = c.sev > 2.6 ? clamp(Math.floor(Math.sqrt(0.3 * G * CURVE_R / c.sev) / MPH / 5) * 5, 10, 35) : 0;
     if(c.sev > 4){ const off = -c.dir * 0.52; for(let k = c.start + 6; k < c.end - 6; k++) if(segments[k] && R() < 0.85) segments[k].marks = off; }
-    addSprite(c.start - 16, {img: curveSign(kind, c.dir, adv), ww: 420, hit: 0.1}, 1.32);
-    if(c.sev > 4.2 && !c.cliff){ const cb = {img: chevronBoard(c.dir), ww: 420, hit: 0.1}; for(let k = c.start + 2; k < Math.min(c.end, c.start + 40); k += 6) addSprite(k, cb, -c.dir * 1.38); for(let k = c.start - 10; k < c.start + 36; k += 3) if(segments[k]) segments[k].tyres = -c.dir; }
+    const fo = isForest();
+    if(!fo) addSprite(c.start - 16, {img: curveSign(kind, c.dir, adv), ww: 420, hit: 0.1}, 1.32);
+    // stage dressing: tape along the inside of bends, spectator tents where people gather
+    if(fo && c.sev > 3) for(let k = c.start; k < c.end; k++) if(segments[k]) segments[k].tape = c.dir;
+    if(fo && c.photo){ const m = (c.start + c.end) >> 1; for(let k = -8; k <= 8; k += 4) if(segments[m + k]) segments[m + k].tent = -c.dir; for(let k = -6; k <= 6; k += 3) addSprite(m + k, SP.photo, -c.dir * (2.0 + R() * 0.8)); }
+    if(c.sev > (fo ? 3.4 : 4.2) && !c.cliff){ const cb = {img: chevronBoard(c.dir), ww: 420, hit: 0.1}; for(let k = c.start + 2; k < Math.min(c.end, c.start + 40); k += 6) addSprite(k, cb, -c.dir * 1.38); for(let k = c.start - 10; k < c.start + 36; k += 3) if(segments[k]) segments[k].tyres = -c.dir; }
     if(c.photo){ const m = (c.start + c.end) >> 1; addSprite(m, SP.photo, -c.dir * 1.75); }
   }
   addSprite(startIndex, SP.bStart, 0);
+  if(isForest()){
+    for(let k = startIndex - 26; k < startIndex + 14; k++){ segments[k].tape = k < startIndex ? -1 : 1; if(k % 6 === 0) segments[k].tent = k % 12 ? 1 : -1; }
+    for(let k = startIndex - 14; k < startIndex + 8; k += 3) addSprite(k, SP.photo, (k % 2 ? -1 : 1) * (2.1 + R() * 0.6));
+    for(let m = 1; m < FULL_MI; m++) addSprite(Math.floor((startZ + m * UPM) / SEG), {img: makeMile(m), ww: 220, hit: 0.08}, 1.3);
+    addSprite(Math.floor(sprintEndZ / SEG), SP.bSprint, 0);
+    addSprite(finishIndex, SP.bFinish, 0);
+    return;
+  }
   addSprite(startIndex - 22, SP.shame, -2.2);
   addSprite(startIndex + 10, SP.dragon, 2.0);
   addSprite(startIndex + 34, {img: curveSign('winding', 1, 0, ['NEXT', '11 MILES']), ww: 460, hit: 0.1}, 1.35);
@@ -1072,7 +1091,7 @@ function drawLayer(img, off, y){
 }
 
 /* ================= game state ================= */
-const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'overcast', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', antilag: 'off', gfx: 'high', paints: {}, liveries: {}}, store.get('settings', {}));
+const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'overcast', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', antilag: 'off', gfx: 'high', paints: {}, liveries: {}, map: 'dragon'}, store.get('settings', {}));
 // the rally-game look became the default once; players can still pick another time of day
 if(!settings.look2){ settings.look2 = 1; settings.tod = 'overcast'; }
 const saveSettings = () => store.set('settings', settings);
@@ -1121,7 +1140,7 @@ function resetRun(attract){
   nextCurve = 0; particles = []; scraping = false;
   stats = {top: 0, wrecks: 0, rails: 0, photos: 0, bumps: 0, maxG: 0};
   for(const c of curves) c.snapped = false;
-  const n = settings.traffic === 'off' ? 0 : Math.round((routeEnd - startZ) / UPM * 6.5);
+  const n = settings.traffic === 'off' || isForest() ? 0 : Math.round((routeEnd - startZ) / UPM * 6.5);
   makeCars(attract ? Math.round((fullEndZ - startZ) / UPM * 5) : n, startZ, attract ? fullEndZ : routeEnd);
   if(attract){ position = startZ - PLAYER_Z + SEG * 20; drv.v = 14; }
 }
@@ -2367,7 +2386,7 @@ function drawGMeter(){
 function setCount(n){ const el = $('#count'); el.hidden = false; setText(el, 'cd', String(n)); }
 
 function show(id){ for(const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id; }
-function bestKey(){ return settings.route + ':' + settings.car; }
+function bestKey(){ return (isForest() ? 'forest:' : '') + settings.route + ':' + settings.car; }
 
 function startRace(){
   Snd.init();
@@ -2424,6 +2443,7 @@ function renderGarage(){
   for(const c of regionCars()){ const b = document.createElement('button'); b.textContent = c.short; b.setAttribute('aria-pressed', String(c.id === car.id)); b.onclick = () => { settings.car = c.id; renderGarage(); attractCar(); }; chips.appendChild(b); }
   $('#cName').textContent = car.name; $('#cEra').textContent = `${car.year} · ${car.hp} hp · ${car.lb.toLocaleString('en-US')} lb · ${car.drive} · ${car.box} · ${car.abs ? 'ABS' : 'no ABS'}`; $('#cNote').textContent = car.note;
   $('#cBadge').textContent = REGION_NAME[car.region];
+  $('#rtSprint').textContent = `Sprint · ${SPRINT_MI} mi`; $('#rtFull').textContent = `Full · ${FULL_MI} mi`;
   const pp = paintOf(car), paint = pp.c;
   const pw = $('#paints'); pw.querySelectorAll('button').forEach(b => b.remove());
   car.paints.forEach(p => { const b = document.createElement('button'); b.style.background = p.c; b.title = p.n; b.setAttribute('aria-label', p.n); b.setAttribute('aria-pressed', String(p === pp)); b.onclick = () => { settings.paints[car.id] = p.n; renderGarage(); attractCar(); }; pw.appendChild(b); });
@@ -2543,7 +2563,9 @@ $('#carNext').onclick = () => cycleCar(1);
 function cycleCar(d){ const list = regionCars(); const i = list.findIndex(c => c.id === settings.car); settings.car = list[(i + d + list.length) % list.length].id; renderGarage(); attractCar(); }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { settings.region = b.dataset.r; settings.car = regionCars()[0].id; renderGarage(); attractCar(); });
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
-  const k = b.parentElement.dataset.opt; settings[k] = b.dataset.v;
+  const k = b.parentElement.dataset.opt;
+  if(k === 'map'){ if(settings.map === b.dataset.v) return; settings.map = b.dataset.v; settings.road = settings.map === 'forest' ? 'dirt' : 'dry'; saveSettings(); try{ sessionStorage.setItem('dragon:garage', '1'); }catch(e){} location.reload(); return; }
+  settings[k] = b.dataset.v;
   if(k === 'tod' || k === 'road') setPalette();
   if(k === 'sound') Snd.setOn(settings.sound === 'on');
   if(k === 'steer' && settings.steer === 'tilt') enableTilt();
@@ -2663,6 +2685,12 @@ function makeGL(T, X){
   const bushGeo = merge([[new T.IcosahedronGeometry(0.5, 0).scale(1.2, 0.7, 1.1).translate(0, 0.25, 0), '#ffffff']]);
   const stoneGeo = merge([[new T.DodecahedronGeometry(0.5, 0).scale(1.3, 0.7, 1).translate(0, 0.2, 0), '#ffffff']]);
   const tyreGeo = merge([[new T.CylinderGeometry(0.34, 0.34, 0.26, 10).translate(0, 0.13, 0), '#ffffff']]);
+  const birchGeo = merge([[new T.CylinderGeometry(0.018, 0.026, 0.7, 5).translate(0, 0.35, 0), '#e4e0d4'], [new T.CylinderGeometry(0.019, 0.019, 0.04, 5).translate(0, 0.3, 0), '#2a2622'], [new T.IcosahedronGeometry(0.16, 0).scale(1, 1.3, 1).translate(0, 0.78, 0), '#7f9046'], [new T.IcosahedronGeometry(0.12, 0).translate(0.08, 0.62, 0.02), '#8a9a4c']]);
+  const tentGeo = merge([[new T.ConeGeometry(1.5, 1.9, 4).rotateY(Math.PI / 4).translate(0, 0.95, 0), '#ffffff'], [new T.BoxGeometry(0.05, 1.9, 0.05).translate(0, 0.95, 1.08), '#3a3a3a']]);
+  const postGeo = merge([[new T.CylinderGeometry(0.03, 0.03, 1.0, 5).translate(0, 0.5, 0), '#d9d6cc']]);
+  const tapeTex = tex(mk(64, 8, (g, w, h) => { for(let x = 0; x < w; x += 16){ g.fillStyle = (x / 16) % 2 ? '#f1ede4' : '#d0312a'; g.fillRect(x, 0, 16, h); } }), true);
+  const tapeMat = new T.MeshLambertMaterial({map: tapeTex, side: T.DoubleSide});
+  const tentCols = ['#d9862a', '#c9372c', '#2f5fa8', '#e2b23a', '#3d7a46'].map(c => new T.Color(c));
   const leafCols = ['#8a6c34', '#9a5c2c', '#6e7a36', '#a47c34', '#5c6c32', '#7c5a30'].map(c => new T.Color(c));
   const pineTint = new T.Color(), tmpCol = new T.Color();
   const placeInst = (geo, list, fn) => { if(!list.length) return null; const im = new T.InstancedMesh(geo, flatMat, list.length); list.forEach((it, n) => { fn(it, n); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); im.setColorAt(n, tmpCol); }); im.instanceColor.needsUpdate = true; return im; };
@@ -2702,7 +2730,7 @@ function makeGL(T, X){
       grp.add(pm);
     }
     // vegetation, rock walls and signs from the track's roadside list, plus deeper forest
-    const byTree = treeKinds.map(() => []), byCliff = SP.cliff.map(() => []), byRock = SP.rock.map(() => []), bushes = [], tyres = [];
+    const byTree = treeKinds.map(() => []), byCliff = SP.cliff.map(() => []), byRock = SP.rock.map(() => []), bushes = [], tyres = [], tapes = {'-1': [], '1': []}, tents = [];
     for(let i = c0; i < c1; i++){
       for(const sp of segments[i].sprites){
         const lat = sp.offset;
@@ -2719,12 +2747,26 @@ function makeGL(T, X){
         if(R3() < 0.55 && segments[i].rail !== sd) bushes.push([i, sd * (LAT + 1.1 + R3() * 4.5)]);
       }
       if(segments[i].tyres && i % 2 === 0) tyres.push([i, segments[i].tyres * (LAT + 1.6)]);
+      if(segments[i].tape) tapes[segments[i].tape].push(i);
+      if(segments[i].tent) tents.push([i, segments[i].tent * (LAT + 6 + R3() * 3)]);
     }
     const pines = byTree.filter((_, k) => treeKinds[k].pine).flat(), broad = byTree.filter((_, k) => !treeKinds[k].pine).flat();
     const add = m => m && grp.add(m);
     add(placeInst(pineGeo, pines, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * (0.7 + R3() * 0.25); dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h * 1.15, w); const v = 0.8 + R3() * 0.35; tmpCol.setRGB(v, v * (0.95 + R3() * 0.1), v * 0.95); }));
-    add(placeInst(leafGeo, broad, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * 0.85; dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h, w); tmpCol.copy(leafCols[(R3() * leafCols.length) | 0]); }));
+    // the forest stage swaps the autumn broadleaf for silver birch
+    const fo = isForest();
+    if(fo) add(placeInst(birchGeo, broad, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * 0.55; dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h * 1.1, w); const v = 0.85 + R3() * 0.2; tmpCol.setRGB(v, v, v * 0.95); }));
+    else add(placeInst(leafGeo, broad, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * 0.85; dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h, w); tmpCol.copy(leafCols[(R3() * leafCols.length) | 0]); }));
     add(placeInst(bushGeo, bushes, ([i, lat]) => { const p = ptI(i, lat, terr(i, lat)), s2 = 0.5 + R3() * 0.8; dummy.position.set(p[0], p[1] - 0.05, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(s2, s2 * (0.7 + R3() * 0.5), s2); tmpCol.setRGB(0.19 + R3() * 0.06, 0.28 + R3() * 0.08, 0.13); }));
+    add(placeInst(tentGeo, tents, ([i, lat]) => { const p = ptI(i, lat, terr(i, lat)); dummy.position.set(p[0], p[1] - 0.05, p[2]); dummy.rotation.set(0, -TH[i] + (R3() - 0.5) * 0.6, 0); dummy.scale.set(1, 1, 1); tmpCol.copy(tentCols[(R3() * tentCols.length) | 0]); }));
+    // red and white tape strung between posts, keeping spectators back
+    for(const sd of [-1, 1]){
+      const list = tapes[sd]; if(!list.length) continue;
+      add(placeInst(postGeo, list.filter((_, k) => k % 3 === 0), (i) => { const p = ptI(i, sd * (LAT + 1.3), terr(i, sd * (LAT + 1.3))); dummy.position.set(...p); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); tmpCol.setRGB(1, 1, 1); }));
+      const pos = [], uv = [], idx = []; let prev = -9;
+      for(const i of list){ const lat = sd * (LAT + 1.3), y = terr(i, lat), a = ptI(i, lat, y + 0.82), b = ptI(i, lat, y + 0.9), base = pos.length / 3; pos.push(...a, ...b); uv.push(i * 0.6, 0, i * 0.6, 1); if(prev === i - 1) idx.push(base - 2, base, base - 1, base - 1, base, base + 1); prev = i; }
+      const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(pos), 3)); geo.setAttribute('uv', new T.BufferAttribute(new Float32Array(uv), 2)); geo.setIndex(idx); geo.computeVertexNormals(); grp.add(new T.Mesh(geo, tapeMat));
+    }
     // tyre walls on the outside of the tight bends, red and white like a rally stage
     const tyreList = []; tyres.forEach(([i, lat]) => { for(let h = 0; h < 3; h++) tyreList.push([i, lat, h]); });
     add(placeInst(tyreGeo, tyreList, ([i, lat, h], n) => { const p = ptI(i, lat, 0); dummy.position.set(p[0], p[1] + h * 0.26, p[2]); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); tmpCol.set((n + (i >> 1)) % 2 ? '#c8352c' : '#e8e3d8'); }));
@@ -3235,12 +3277,14 @@ function frame(now){
 async function boot(){
   try{ await Promise.race([Promise.all([document.fonts.load('400 40px "Racing Sans One"'), document.fonts.load('700 20px "Chakra Petch"')]), new Promise(r => setTimeout(r, 2500))]); }catch(e){}
   buildSprites(); buildTrack();
+  if(isForest()) $('.tag').innerHTML = `<em>${TOTAL_CURVES} corners</em> in <em>${FULL_MI} miles</em> of forest gravel`;
   pal = palFor();
   resize();
   resetRun(true);
   addEventListener('resize', () => { resize(); });
   requestAnimationFrame(frame);
   initGL();
+  try{ if(sessionStorage.getItem('dragon:garage')){ sessionStorage.removeItem('dragon:garage'); $('#btnGarage').click(); } }catch(e){}
 }
 if(location.hash === '#debug') window.dragonDebug = {jump(mi){ position = startZ + mi * UPM - PLAYER_Z; }, get state(){ return state; }, cars: CARS, sim060, loft, carDims, get drv(){ return {v: drv.v, gear: drv.gear, rpm: drv.rpm, psi, playerX, vyB, yawR, latG, skid, steer, kRoad: segAt(position + PLAYER_Z).curve / CURVE_R, delta: deltaVis, brakeP, thrP}; }, input, segM: () => SEG * 1609.34 / UPM, allow(f){ const car = player.car, ps = segAt(position + PLAYER_Z), segM = SEG * 1609.34 / UPM, v = drv.v, mu = car.grip * G, bg = car.brakeG * G * 0.8; let al = 40, d = 0; for(let k = 0; k < 300; k++){ const s = segments[ps.index + k]; if(!s) break; const kk = Math.abs(s.curve) / CURVE_R; if(kk > 1e-3) al = Math.min(al, Math.sqrt(f * mu / kk + 2 * bg * d)); d += segM; } return al; }, get wrecks(){ return stats.wrecks; }, snd: Snd, get gl(){ return GL; }};
 boot();
