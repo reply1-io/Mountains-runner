@@ -288,7 +288,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
             <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
             <div class="opt"><span>Gears</span><div class="seg" data-opt="gearbox"><button data-v="auto">Automatic</button><button data-v="manual">Manual</button></div></div>
             <div class="opt"><span>Anti-lag</span><div class="seg" data-opt="antilag"><button data-v="off">Off</button><button data-v="on">On (turbo cars)</button></div></div>
-            <div class="opt"><span>Road</span><div class="seg" data-opt="road"><button data-v="dry">Dry</button><button data-v="wet">Wet</button></div></div>
+            <div class="opt"><span>Road</span><div class="seg" data-opt="road"><button data-v="dry">Dry</button><button data-v="wet">Wet</button><button data-v="dirt">Dirt</button></div></div>
             <div class="opt"><span>Steering</span><div class="seg" data-opt="steer"><button data-v="buttons">Buttons</button><button data-v="wheel">Drag wheel</button><button data-v="tilt">Tilt</button></div></div>
             <div class="opt"><span>Assist</span><div class="seg" data-opt="assist"><button data-v="on">Steering assist</button><button data-v="off">Full sim</button></div></div>
             <div class="opt"><span>Traffic</span><div class="seg" data-opt="traffic"><button data-v="on">Cars + bikes</button><button data-v="off">Empty road</button></div></div>
@@ -969,7 +969,7 @@ function decorate(R, finishIndex){
     const adv = c.sev > 2.6 ? clamp(Math.floor(Math.sqrt(0.3 * G * CURVE_R / c.sev) / MPH / 5) * 5, 10, 35) : 0;
     if(c.sev > 4){ const off = -c.dir * 0.52; for(let k = c.start + 6; k < c.end - 6; k++) if(segments[k] && R() < 0.85) segments[k].marks = off; }
     addSprite(c.start - 16, {img: curveSign(kind, c.dir, adv), ww: 420, hit: 0.1}, 1.32);
-    if(c.sev > 4.2 && !c.cliff){ const cb = {img: chevronBoard(c.dir), ww: 420, hit: 0.1}; for(let k = c.start + 2; k < Math.min(c.end, c.start + 40); k += 6) addSprite(k, cb, -c.dir * 1.38); }
+    if(c.sev > 4.2 && !c.cliff){ const cb = {img: chevronBoard(c.dir), ww: 420, hit: 0.1}; for(let k = c.start + 2; k < Math.min(c.end, c.start + 40); k += 6) addSprite(k, cb, -c.dir * 1.38); for(let k = c.start - 10; k < c.start + 36; k += 3) if(segments[k]) segments[k].tyres = -c.dir; }
     if(c.photo){ const m = (c.start + c.end) >> 1; addSprite(m, SP.photo, -c.dir * 1.75); }
   }
   addSprite(startIndex, SP.bStart, 0);
@@ -1454,10 +1454,10 @@ function update(dt){
   along -= G * (ps.p2.world.y - ps.p1.world.y) / SEG;
   offroad = Math.abs(playerX) > 1.08;
   if(offroad && drv.v > 0.5) along -= 0.16 * G + drv.v * 0.12;
-  const wet = settings.road === 'wet' && !attract;
-  const bA = drv.v > 0.05 ? brakeP * car.brakeG * G * (wet ? 0.7 : 1) : 0;
+  const wet = settings.road === 'wet' && !attract, dirt = settings.road === 'dirt' && !attract;
+  const bA = drv.v > 0.05 ? brakeP * car.brakeG * G * (wet ? 0.7 : 1) * (dirt ? 0.75 : 1) : 0;
   locked = !car.abs && brakeP > 0.9 && drv.v > 4;
-  const mu = car.grip * (offroad ? 0.55 : 1) * (wet ? 0.7 : 1);
+  const mu = car.grip * (offroad ? 0.55 : 1) * (wet ? 0.7 : 1) * (dirt ? 0.72 : 1);
   const kRoad = ps.curve / CURVE_R;
   const assist = attract || settings.assist !== 'off';
 
@@ -1819,7 +1819,7 @@ const MID_ENGINE = {c8: 1, svj: 1, elise: 1};
 const LIVERY = {
   none: {name: 'Factory'},
   stripes: {name: 'Twin stripes', center: [[-0.16, -0.06], [0.06, 0.16]], col: ['#f1efe6']},
-  rally: {name: 'Rally stripe', center: [[-0.12, 0.12]], col: ['#f1efe6']},
+  rally: {name: 'Rally stripe', center: [[-0.12, 0.12]], col: ['#f1efe6'], cage: 1},
   m: {name: 'M stripes', bands: ['#5bbfea', '#2b3a8f', '#e2231a'], cage: 1, number: c => ({csl: 1, e30: 23, m3: 46}[c.id] || 3)},
   race: {name: 'Race number', center: [[-0.1, 0.1]], col: ['#f1efe6'], cage: 1, number: c => ({ae86: 86, r34: 34, supra: 80, rx7: 7, gt3: 911, c8: 8, viper: 10, mustang: 5, hellcat: 66, charger70: 70, svj: 63, golf: 16, elise: 1, miata: 89}[c.id] || 9)},
 };
@@ -2464,7 +2464,9 @@ function drawPreview3D(now){
   render3D(pctx, car, {spin: 0, v: 0, cx: w / 2, gy: h * 0.74, width: w * 0.3, yaw: Math.PI + t * 0.45, delta: Math.sin(t * 0.9) * 0.35, roll: 0, pitch: 0, brake: false, paint, camH: 1.5, camD: 8});
 }
 function attractCar(){ player = playerSprites(); }
-function setPalette(){ pal = PAL[settings.tod] || PAL.gold; buildLayers(); }
+// a dirt road swaps the asphalt and its paint for packed earth
+function palFor(){ const b = PAL[settings.tod] || PAL.gold; return settings.road === 'dirt' ? Object.assign({}, b, {road: ['#7d6748', '#776244'], line: '#7d6748', yellow: '#7d6748', shoulder: ['#6a5a40', '#64553c']}) : b; }
+function setPalette(){ pal = palFor(); buildLayers(); }
 
 /* input wiring */
 document.querySelectorAll('.ctl').forEach(btn => {
@@ -2542,7 +2544,7 @@ function cycleCar(d){ const list = regionCars(); const i = list.findIndex(c => c
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { settings.region = b.dataset.r; settings.car = regionCars()[0].id; renderGarage(); attractCar(); });
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
   const k = b.parentElement.dataset.opt; settings[k] = b.dataset.v;
-  if(k === 'tod') setPalette();
+  if(k === 'tod' || k === 'road') setPalette();
   if(k === 'sound') Snd.setOn(settings.sound === 'on');
   if(k === 'steer' && settings.steer === 'tilt') enableTilt();
   if(k === 'gfx'){ if(settings.gfx !== 'classic' && !GL) initGL(); else if(GL) GL.resize(); }
@@ -2561,10 +2563,10 @@ async function initGL(){
   if(settings.gfx === 'classic') return;
   try{
     const T = await import('three');
-    const [{EffectComposer}, {RenderPass}, {UnrealBloomPass}, {OutputPass}] = await Promise.all([
+    const [{EffectComposer}, {RenderPass}, {UnrealBloomPass}, {OutputPass}, {ShaderPass}] = await Promise.all([
       import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'),
-      import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js')]);
-    GL = makeGL(T, {EffectComposer, RenderPass, UnrealBloomPass, OutputPass});
+      import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js'), import('three/addons/postprocessing/ShaderPass.js')]);
+    GL = makeGL(T, {EffectComposer, RenderPass, UnrealBloomPass, OutputPass, ShaderPass});
     resize();
   }catch(e){ console.warn('3D renderer unavailable, using classic graphics', e); GL = null; }
 }
@@ -2604,19 +2606,30 @@ function makeGL(T, X){
     const line = (u, wd, col) => { g.fillStyle = col; g.fillRect((u - wd / 2) * w, 0, wd * w, h); for(let i = 0; i < 300; i++){ g.fillStyle = 'rgba(60,60,60,.35)'; g.fillRect((u - wd / 2) * w + R2() * wd * w, R2() * h, 2, 2); } };
     line(0.03, 0.022, '#e9e6dc'); line(0.97, 0.022, '#e9e6dc'); line(0.488, 0.016, '#e2b12f'); line(0.512, 0.016, '#e2b12f');
   });
+  // painterly ground: broad soft patches of grass and earth rather than fine noise
   const groundTex = () => mk(512, 512, (g, w, h) => {
-    g.fillStyle = '#3e4a2a'; g.fillRect(0, 0, w, h); const R2 = rng(9);
-    const cols = ['#5a4a2c', '#6b5530', '#7a3f22', '#8a6a2a', '#3f5a2a', '#2f3f22', '#4e3a26'];
-    for(let i = 0; i < 9000; i++){ g.fillStyle = cols[(R2() * cols.length) | 0]; g.globalAlpha = 0.5 + R2() * 0.5; g.beginPath(); g.ellipse(R2() * w, R2() * h, 1 + R2() * 4, 1 + R2() * 2.5, R2() * 3, 0, 6.283); g.fill(); }
+    g.fillStyle = '#4b5832'; g.fillRect(0, 0, w, h); const R2 = rng(9);
+    const cols = ['#56653a', '#43502c', '#5f6b3c', '#4f5a33', '#665a3a', '#3d4828'];
+    for(let i = 0; i < 700; i++){ g.fillStyle = cols[(R2() * cols.length) | 0]; g.globalAlpha = 0.35 + R2() * 0.4; g.beginPath(); g.ellipse(R2() * w, R2() * h, 8 + R2() * 34, 5 + R2() * 18, R2() * 3, 0, 6.283); g.fill(); }
+    for(let i = 0; i < 900; i++){ g.fillStyle = R2() < 0.6 ? '#66763f' : '#3a4526'; g.globalAlpha = 0.5; g.fillRect(R2() * w, R2() * h, 2, 5); }
     g.globalAlpha = 1;
   });
-  const gravelTex = () => mk(256, 256, (g, w, h) => { g.fillStyle = '#6d665a'; g.fillRect(0, 0, w, h); const R2 = rng(4); for(let i = 0; i < 5000; i++){ g.fillStyle = R2() < 0.5 ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.15)'; g.fillRect(R2() * w, R2() * h, 2, 2); } });
+  const gravelTex = () => mk(256, 256, (g, w, h) => { g.fillStyle = '#76664a'; g.fillRect(0, 0, w, h); const R2 = rng(4); for(let i = 0; i < 260; i++){ g.fillStyle = R2() < 0.5 ? 'rgba(60,45,25,.25)' : 'rgba(255,240,210,.12)'; g.beginPath(); g.ellipse(R2() * w, R2() * h, 4 + R2() * 14, 3 + R2() * 8, R2() * 3, 0, 6.283); g.fill(); } });
+  // packed dirt: two dark wheel ruts, a lighter crown and loose stones at the edges
+  const dirtTex = () => mk(512, 1024, (g, w, h) => {
+    g.fillStyle = '#8b7452'; g.fillRect(0, 0, w, h); const R2 = rng(15);
+    for(let i = 0; i < 900; i++){ g.fillStyle = R2() < 0.5 ? 'rgba(70,52,30,.16)' : 'rgba(255,236,200,.1)'; g.beginPath(); g.ellipse(R2() * w, R2() * h, 6 + R2() * 26, 4 + R2() * 40, 0, 0, 6.283); g.fill(); }
+    for(const u of [0.2, 0.36, 0.64, 0.8]){ const gr = g.createLinearGradient((u - 0.07) * w, 0, (u + 0.07) * w, 0); gr.addColorStop(0, 'rgba(60,42,24,0)'); gr.addColorStop(0.5, 'rgba(60,42,24,.38)'); gr.addColorStop(1, 'rgba(60,42,24,0)'); g.fillStyle = gr; g.fillRect((u - 0.07) * w, 0, 0.14 * w, h);
+      g.strokeStyle = 'rgba(50,36,20,.35)'; g.lineWidth = 2; for(let k = 0; k < 3; k++){ const x = (u + (R2() - 0.5) * 0.05) * w; g.beginPath(); g.moveTo(x, 0); for(let y = 0; y <= h; y += 64) g.lineTo(x + Math.sin(y * 0.01 + k) * 4, y); g.stroke(); } }
+    for(const [u0, u1] of [[0, 0.07], [0.93, 1]]){ g.fillStyle = 'rgba(70,58,36,.45)'; g.fillRect(u0 * w, 0, (u1 - u0) * w, h); }
+    for(let i = 0; i < 1600; i++){ g.fillStyle = R2() < 0.5 ? '#5e4c33' : '#a99272'; const x = R2() < 0.6 ? (R2() < 0.5 ? R2() * 0.12 : 0.88 + R2() * 0.12) * w : R2() * w; g.fillRect(x, R2() * h, 2 + R2() * 3, 2 + R2() * 3); }
+  });
   const rockTex = () => SP.cliff[0].img;
 
   /* ---- materials ---- */
   const roadMat = new T.MeshStandardMaterial({map: tex(asphaltTex(false), true), roughness: 0.88, metalness: 0});
   const roadWetMap = tex(asphaltTex(true), true);
-  const roadDryMap = roadMat.map;
+  const roadDryMap = roadMat.map, roadDirtMap = tex(dirtTex(), true);
   const groundMat = new T.MeshStandardMaterial({map: tex(groundTex(), true), roughness: 1});
   const gravelMat = new T.MeshStandardMaterial({map: tex(gravelTex(), true), roughness: 1});
   const railMat = new T.MeshStandardMaterial({color: 0xb9c0c4, metalness: 0.75, roughness: 0.35});
@@ -2637,6 +2650,22 @@ function makeGL(T, X){
   const crossGeo = (() => { const g2 = new T.BufferGeometry(); const P2 = [-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0, 0, 0, -0.5, 0, 0, 0.5, 0, 1, 0.5, 0, 1, -0.5]; g2.setAttribute('position', new T.BufferAttribute(new Float32Array(P2), 3)); g2.setAttribute('uv', new T.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1]), 2)); g2.setAttribute('normal', new T.BufferAttribute(new Float32Array(Array(8).fill([0, 1, 0]).flat()), 3)); g2.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]); return g2; })();
   const treeMats = treeKinds.map(k => new T.MeshLambertMaterial({map: tex(k.img), alphaTest: 0.45, side: T.DoubleSide, color: new T.Color(1.5, 1.5, 1.45), emissive: new T.Color(0.06, 0.06, 0.05)}));
   const quadGeo = new T.PlaneGeometry(1, 1).translate(0, 0.5, 0);
+  // low-poly props: faceted shapes with baked colours, tinted per instance, like a stylised rally game
+  const flatMat = new T.MeshLambertMaterial({vertexColors: true});
+  const merge = parts => {
+    const gs = parts.map(([g0, c]) => [g0.index ? g0.toNonIndexed() : g0, new T.Color(c)]);
+    const n = gs.reduce((a, [g]) => a + g.attributes.position.count, 0), pos = new Float32Array(n * 3), col = new Float32Array(n * 3); let o = 0;
+    for(const [g, c] of gs){ pos.set(g.attributes.position.array, o * 3); for(let i = 0; i < g.attributes.position.count; i++) col.set([c.r, c.g, c.b], (o + i) * 3); o += g.attributes.position.count; }
+    const out = new T.BufferGeometry(); out.setAttribute('position', new T.BufferAttribute(pos, 3)); out.setAttribute('color', new T.BufferAttribute(col, 3)); out.computeVertexNormals(); return out;
+  };
+  const pineGeo = merge([[new T.CylinderGeometry(0.03, 0.045, 0.3, 5).translate(0, 0.15, 0), '#4a3626'], [new T.ConeGeometry(0.3, 0.42, 7).translate(0, 0.36, 0), '#2e4a2c'], [new T.ConeGeometry(0.24, 0.36, 7).translate(0, 0.57, 0), '#35532f'], [new T.ConeGeometry(0.16, 0.32, 7).translate(0, 0.79, 0), '#3d5d33']]);
+  const leafGeo = merge([[new T.CylinderGeometry(0.035, 0.05, 0.45, 5).translate(0, 0.22, 0), '#4e3a28'], [new T.IcosahedronGeometry(0.3, 0).scale(1, 0.85, 1).translate(0, 0.62, 0), '#ffffff'], [new T.IcosahedronGeometry(0.2, 0).translate(0.16, 0.48, 0.05), '#f2f2f2']]);
+  const bushGeo = merge([[new T.IcosahedronGeometry(0.5, 0).scale(1.2, 0.7, 1.1).translate(0, 0.25, 0), '#ffffff']]);
+  const stoneGeo = merge([[new T.DodecahedronGeometry(0.5, 0).scale(1.3, 0.7, 1).translate(0, 0.2, 0), '#ffffff']]);
+  const tyreGeo = merge([[new T.CylinderGeometry(0.34, 0.34, 0.26, 10).translate(0, 0.13, 0), '#ffffff']]);
+  const leafCols = ['#8a6c34', '#9a5c2c', '#6e7a36', '#a47c34', '#5c6c32', '#7c5a30'].map(c => new T.Color(c));
+  const pineTint = new T.Color(), tmpCol = new T.Color();
+  const placeInst = (geo, list, fn) => { if(!list.length) return null; const im = new T.InstancedMesh(geo, flatMat, list.length); list.forEach((it, n) => { fn(it, n); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); im.setColorAt(n, tmpCol); }); im.instanceColor.needsUpdate = true; return im; };
   const litBoost = {color: new T.Color(1.4, 1.4, 1.4), emissive: new T.Color(0.12, 0.12, 0.11)};
   const cliffMats = SP.cliff.map(c => new T.MeshLambertMaterial(Object.assign({map: tex(c.img), alphaTest: 0.3, side: T.DoubleSide}, litBoost)));
   const rockMats = SP.rock.map(c => new T.MeshLambertMaterial(Object.assign({map: tex(c.img), alphaTest: 0.3, side: T.DoubleSide}, litBoost)));
@@ -2673,7 +2702,7 @@ function makeGL(T, X){
       grp.add(pm);
     }
     // vegetation, rock walls and signs from the track's roadside list, plus deeper forest
-    const byTree = treeKinds.map(() => []), byCliff = SP.cliff.map(() => []), byRock = SP.rock.map(() => []);
+    const byTree = treeKinds.map(() => []), byCliff = SP.cliff.map(() => []), byRock = SP.rock.map(() => []), bushes = [], tyres = [];
     for(let i = c0; i < c1; i++){
       for(const sp of segments[i].sprites){
         const lat = sp.offset;
@@ -2685,23 +2714,26 @@ function makeGL(T, X){
         const mesh = new T.Mesh(quadGeo, matFor(sp.img)); const p = ptI(i, lat * LAT, terr(i, lat * LAT));
         mesh.position.set(...p); mesh.rotation.set(0, -TH[i], 0); mesh.scale.set(wM, hM, 1); grp.add(mesh);
       }
-      if(i % 2 === 0) for(const sd of [-1, 1]){ if(R3() < 0.55){ const lat = sd * (9 + R3() * R3() * 48); const kk = (R3() * treeKinds.length) | 0; byTree[kk].push([i, lat, lerp(...treeKinds[kk].h, R3()) * 1.1]); } }
+      for(const sd of [-1, 1]){
+        if(R3() < 0.7){ const lat = sd * (9 + R3() * R3() * 48); const kk = R3() < 0.8 ? (R3() * 3) | 0 : 3 + ((R3() * 7) | 0); byTree[kk].push([i, lat, lerp(...treeKinds[kk].h, R3()) * 1.2]); }
+        if(R3() < 0.55 && segments[i].rail !== sd) bushes.push([i, sd * (LAT + 1.1 + R3() * 4.5)]);
+      }
+      if(segments[i].tyres && i % 2 === 0) tyres.push([i, segments[i].tyres * (LAT + 1.6)]);
     }
-    byTree.forEach((list, k) => {
-      if(!list.length) return; const im = new T.InstancedMesh(crossGeo, treeMats[k], list.length);
-      list.forEach(([i, lat, h], n) => { const p = ptI(i, lat, terr(i, lat)); const w = h * (treeKinds[k].pine ? 0.5 : 0.85); dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h, w); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); });
-      grp.add(im);
-    });
+    const pines = byTree.filter((_, k) => treeKinds[k].pine).flat(), broad = byTree.filter((_, k) => !treeKinds[k].pine).flat();
+    const add = m => m && grp.add(m);
+    add(placeInst(pineGeo, pines, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * (0.7 + R3() * 0.25); dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h * 1.15, w); const v = 0.8 + R3() * 0.35; tmpCol.setRGB(v, v * (0.95 + R3() * 0.1), v * 0.95); }));
+    add(placeInst(leafGeo, broad, ([i, lat, h]) => { const p = ptI(i, lat, terr(i, lat)), w = h * 0.85; dummy.position.set(p[0], p[1] - 0.2, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(w, h, w); tmpCol.copy(leafCols[(R3() * leafCols.length) | 0]); }));
+    add(placeInst(bushGeo, bushes, ([i, lat]) => { const p = ptI(i, lat, terr(i, lat)), s2 = 0.5 + R3() * 0.8; dummy.position.set(p[0], p[1] - 0.05, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(s2, s2 * (0.7 + R3() * 0.5), s2); tmpCol.setRGB(0.19 + R3() * 0.06, 0.28 + R3() * 0.08, 0.13); }));
+    // tyre walls on the outside of the tight bends, red and white like a rally stage
+    const tyreList = []; tyres.forEach(([i, lat]) => { for(let h = 0; h < 3; h++) tyreList.push([i, lat, h]); });
+    add(placeInst(tyreGeo, tyreList, ([i, lat, h], n) => { const p = ptI(i, lat, 0); dummy.position.set(p[0], p[1] + h * 0.26, p[2]); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); tmpCol.set((n + (i >> 1)) % 2 ? '#c8352c' : '#e8e3d8'); }));
     byCliff.forEach((list, k) => {
       if(!list.length) return; const im = new T.InstancedMesh(quadGeo, cliffMats[k], list.length);
       list.forEach(([i, lat], n) => { const sd = Math.sign(lat), p = ptI(i, lat + sd * 1.5, -0.3), th = TH[i]; dummy.position.set(...p); dummy.rotation.set(0, Math.atan2(-sd * Math.cos(th), -sd * Math.sin(th)), 0); dummy.scale.set(7 + R3() * 3, 9 + R3() * 6, 1); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); });
       grp.add(im);
     });
-    byRock.forEach((list, k) => {
-      if(!list.length) return; const im = new T.InstancedMesh(crossGeo, rockMats[k], list.length);
-      list.forEach(([i, lat], n) => { const p = ptI(i, lat, terr(i, lat)); const s2 = 1.2 + R3() * 1.4; dummy.position.set(p[0], p[1] - 0.1, p[2]); dummy.rotation.set(0, R3() * 6.28, 0); dummy.scale.set(s2 * 1.6, s2, s2 * 1.6); dummy.updateMatrix(); im.setMatrixAt(n, dummy.matrix); });
-      grp.add(im);
-    });
+    add(placeInst(stoneGeo, byRock.flat(), ([i, lat]) => { const p = ptI(i, lat, terr(i, lat)), s2 = 0.7 + R3() * 1.0; dummy.position.set(p[0], p[1] - 0.15, p[2]); dummy.rotation.set(R3() * 0.4, R3() * 6.28, R3() * 0.4); dummy.scale.set(s2 * (1 + R3() * 0.6), s2, s2); const v = 0.36 + R3() * 0.1; tmpCol.setRGB(v, v * 0.98, v * 0.9); }));
     grp.visible = false; scene.add(grp); chunks.push(grp);
   }
 
@@ -2738,7 +2770,7 @@ function makeGL(T, X){
   const LOOK = {
     gold: {top: '#3d5d8c', mid: '#f3be8c', bot: '#6a5a4c', fog: '#dcae8a', fogD: 0.0038, sunCol: '#ffd6a6', sunI: 3.2, sunEl: 0.32, sunAz: 0.9, hemiS: '#ffe3c4', hemiG: '#5a4a34', hemiI: 1.6, exp: 1.15, stars: 0},
     fog: {top: '#8fa3ad', mid: '#c9d3d4', bot: '#8a9590', fog: '#c7d0cf', fogD: 0.012, sunCol: '#fffaf0', sunI: 1.4, sunEl: 0.8, sunAz: 0.3, hemiS: '#eef3f5', hemiG: '#606b55', hemiI: 2.2, exp: 1.05, stars: 0},
-    overcast: {top: '#97a09f', mid: '#c4c2b4', bot: '#6c6b5a', fog: '#a7aa9b', fogD: 0.0085, sunCol: '#fff1d8', sunI: 0.6, sunEl: 0.85, sunAz: 0.5, hemiS: '#ece7d6', hemiG: '#4e4935', hemiI: 1.7, exp: 1.08, bloomT: 0.95, stars: 0},
+    overcast: {top: '#97a09f', mid: '#bfbfb2', bot: '#6c6b5a', fog: '#9da394', fogD: 0.012, sunCol: '#fff1d8', sunI: 0.6, sunEl: 0.85, sunAz: 0.5, hemiS: '#ece7d6', hemiG: '#4e4935', hemiI: 1.7, exp: 1.08, bloomT: 0.95, stars: 0},
     night: {top: '#02040b', mid: '#0c1426', bot: '#05070b', fog: '#070b14', fogD: 0.0065, sunCol: '#8fa6d6', sunI: 0.25, sunEl: 0.7, sunAz: -0.6, hemiS: '#3a4a6c', hemiG: '#0b0e12', hemiI: 0.35, exp: 1.2, stars: 1},
   };
   let look = LOOK.gold;
@@ -2754,7 +2786,7 @@ function makeGL(T, X){
     const glow = settings.tod === 'night' ? 0 : 1;
     for(const m of [...cliffMats, ...rockMats]) m.emissive.setRGB(0.12 * glow, 0.12 * glow, 0.11 * glow);
     for(const m of treeMats) m.emissive.setRGB(0.06 * glow, 0.06 * glow, 0.05 * glow);
-    roadMat.map = wet ? roadWetMap : roadDryMap; roadMat.roughness = wet ? 0.25 : 0.88; roadMat.metalness = wet ? 0.1 : 0; roadMat.needsUpdate = true;
+    const dirtR = settings.road === 'dirt'; roadMat.map = dirtR ? roadDirtMap : wet ? roadWetMap : roadDryMap; roadMat.roughness = wet ? 0.25 : dirtR ? 1 : 0.88; roadMat.metalness = wet ? 0.1 : 0; roadMat.needsUpdate = true;
     buildRidges(); buildEnv();
   };
   // reflections for paint and glass come from the sky
@@ -2894,7 +2926,7 @@ function makeGL(T, X){
     if(LVc.col && pc.r * 0.3 + pc.g * 0.59 + pc.b * 0.11 > 0.45) LVc.col = ['#17191d'];
     const M = mesh(car), d = M.d, B = M.body, hw = d.wid / 2, hl = d.len / 2;
     const root = new T.Group(), body = new T.Group(); root.add(body);
-    const paintMat = new T.MeshPhysicalMaterial({color: paintHex, metalness: 0.45, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 1.1});
+    const paintMat = new T.MeshPhysicalMaterial({color: paintHex, metalness: 0.15, roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.15, envMapIntensity: 0.8});
     const twoMat = new T.MeshPhysicalMaterial({color: car.s.twoTone || paintHex, metalness: 0.3, roughness: 0.4, clearcoat: 1});
     const shell = new T.Mesh(bodyGeo(car), [paintMat, glassMat, trimMat, underMat, twoMat]); shell.castShadow = true; body.add(shell);
     body.add(new T.Mesh(bodyGeo(car), [innerMat, innerGlass, innerMat, innerMat, innerMat]));
@@ -3064,17 +3096,26 @@ function makeGL(T, X){
   const smokeTex = tex(mk(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(235,235,235,.9)'); gr.addColorStop(1, 'rgba(235,235,235,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }));
   const flameTex = tex(mk(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(230,240,255,1)'); gr.addColorStop(0.2, 'rgba(130,170,255,.9)'); gr.addColorStop(0.45, 'rgba(255,150,40,.85)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }));
   const smokes = Array.from({length: 60}, () => { const s2 = new T.Sprite(new T.SpriteMaterial({map: smokeTex, transparent: true, depthWrite: false, opacity: 0})); s2.visible = false; scene.add(s2); return {s: s2, life: 0}; });
+  // tyre smoke turns to brown dust on a dirt road
+  const tintSmoke = () => smokes.forEach(sm => sm.s.material.color.set(settings.road === 'dirt' ? '#a88d66' : '#ffffff')); tintSmoke();
   let smokeI = 0;
   const flames = [0, 1, 2, 3].map(() => { const s2 = new T.Sprite(new T.SpriteMaterial({map: flameTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, color: 0xffffff})); s2.visible = false; scene.add(s2); return s2; });
   const glare = new T.SpriteMaterial({map: tex(mk(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,248,225,1)'); gr.addColorStop(0.15, 'rgba(255,240,200,.6)'); gr.addColorStop(1, 'rgba(255,240,200,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); })), transparent: true, depthWrite: false, blending: T.AdditiveBlending});
 
   /* ---- post-processing ---- */
-  let comp = null, bloom = null;
+  let comp = null, bloom = null, grade = null;
+  // film grade: softer saturation, lifted olive shadows and a gentle vignette
+  const GRADE = {overcast: {sat: 0.8, lift: [0.055, 0.06, 0.045], gain: [1.0, 0.98, 0.9], vig: 0.55}, fog: {sat: 0.85, lift: [0.04, 0.045, 0.045], gain: [1, 1, 0.97], vig: 0.45}};
+  const applyGrade = () => { if(!grade) return; const g = GRADE[settings.tod] || {sat: 1, lift: [0, 0, 0], gain: [1, 1, 1], vig: 0.35}, u = grade.uniforms; u.sat.value = g.sat; u.lift.value.set(...g.lift); u.gain.value.set(...g.gain); u.vig.value = g.vig; };
   const setupComposer = (w, h) => {
     if(settings.gfx === 'low'){ comp = null; return; }
     comp = new X.EffectComposer(R); comp.addPass(new X.RenderPass(scene, cam));
     bloom = new X.UnrealBloomPass(new T.Vector2(w / 2, h / 2), 0.55, 0.45, look.bloomT || 0.82); comp.addPass(bloom);
     comp.addPass(new X.OutputPass());
+    grade = new X.ShaderPass({uniforms: {tDiffuse: {value: null}, sat: {value: 1}, vig: {value: 0.35}, lift: {value: new T.Vector3()}, gain: {value: new T.Vector3(1, 1, 1)}},
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; uniform float sat, vig; uniform vec3 lift, gain; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.299, 0.587, 0.114)); vec3 g = mix(vec3(l), c.rgb, sat); g = lift + g * (gain - lift); vec2 d = vUv - 0.5; g *= 1.0 - vig * dot(d, d) * 1.4; gl_FragColor = vec4(g, c.a); }'});
+    comp.addPass(grade); applyGrade();
   };
   setLook();
 
@@ -3095,7 +3136,7 @@ function makeGL(T, X){
     preview(car, paint, now){ previewRender(car, paint, now); if(PV) PV.c.style.display = 'block'; },
     hidePreview(){ if(PV) PV.c.style.display = 'none'; },
     render(dt){
-      if(lastPal !== settings.tod || lastRoad !== settings.road){ lastPal = settings.tod; lastRoad = settings.road; setLook(); if(bloom) bloom.threshold = look.bloomT || 0.82; }
+      if(lastPal !== settings.tod || lastRoad !== settings.road){ lastPal = settings.tod; lastRoad = settings.road; setLook(); if(bloom) bloom.threshold = look.bloomT || 0.82; applyGrade(); tintSmoke(); }
       ensurePlayer();
       const car = player.car, u = position + PLAYER_Z, P0 = at(u, playerX);
       const pc = Math.floor(u / SEG / CH);
@@ -3194,7 +3235,7 @@ function frame(now){
 async function boot(){
   try{ await Promise.race([Promise.all([document.fonts.load('400 40px "Racing Sans One"'), document.fonts.load('700 20px "Chakra Petch"')]), new Promise(r => setTimeout(r, 2500))]); }catch(e){}
   buildSprites(); buildTrack();
-  pal = PAL[settings.tod] || PAL.gold;
+  pal = palFor();
   resize();
   resetRun(true);
   addEventListener('resize', () => { resize(); });
