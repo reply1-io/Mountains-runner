@@ -81,6 +81,9 @@ body.portrait .speedo b{font-size:46px}
 .wheel svg{width:120px;height:120px;transition:transform .05s linear}
 body:not(.wheelmode) .wheel,body.wheelmode #padBtns,body.tiltmode #padBtns{display:none}
 @media (max-height:380px){.wheel{width:126px;height:126px}.wheel svg{width:104px;height:104px}}
+.shifter{display:flex;flex-direction:column;gap:10px}
+.ctl.sh{width:54px;height:54px;font-size:26px;font-weight:700;line-height:1}
+body:not(.manualbox) .shifter{display:none}
 .pad{display:flex;gap:12px;align-items:flex-end;pointer-events:auto}
 .ctl{width:78px;height:78px;border-radius:50%;background:rgba(10,18,26,.5);border:2px solid rgba(215,225,226,.35);display:grid;place-items:center;touch-action:none;transition:transform .06s,background .06s}
 .ctl svg{width:30px;height:30px;fill:var(--mist)}
@@ -213,6 +216,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
         <button class="ctl" data-k="right" aria-label="Steer right"><svg viewBox="0 0 24 24"><path d="M8.5 3.5 17.5 12l-9 8.5-1.8-1.9 7-6.6-7-6.6z"/></svg></button>
       </div>
       <div class="pad">
+        <div class="shifter"><button class="ctl sh" id="shUp" aria-label="Shift up">+</button><button class="ctl sh" id="shDn" aria-label="Shift down">&minus;</button></div>
         <button class="ctl pedal brake" data-k="brake">BRAKE</button>
         <button class="ctl pedal gas" data-k="gas">GAS</button>
       </div>
@@ -262,7 +266,9 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
           <div class="opts">
             <div class="opt"><span>Route</span><div class="seg" data-opt="route"><button data-v="sprint">Sprint · 3 mi</button><button data-v="full">Full · 11 mi</button></div></div>
             <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
-            <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button></div></div>
+            <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
+            <div class="opt"><span>Gears</span><div class="seg" data-opt="gearbox"><button data-v="auto">Automatic</button><button data-v="manual">Manual</button></div></div>
+            <div class="opt"><span>Road</span><div class="seg" data-opt="road"><button data-v="dry">Dry</button><button data-v="wet">Wet</button></div></div>
             <div class="opt"><span>Steering</span><div class="seg" data-opt="steer"><button data-v="buttons">Buttons</button><button data-v="wheel">Drag wheel</button><button data-v="tilt">Tilt</button></div></div>
             <div class="opt"><span>Assist</span><div class="seg" data-opt="assist"><button data-v="on">Steering assist</button><button data-v="off">Full sim</button></div></div>
             <div class="opt"><span>Traffic</span><div class="seg" data-opt="traffic"><button data-v="on">Cars + bikes</button><button data-v="off">Empty road</button></div></div>
@@ -427,19 +433,26 @@ const rpmOf = (car, st) => Math.max(850, car.redline * st.v / car.vg[st.gear]);
 function driveAccel(car, st, thr, dt){
   if(st.shiftT > 0) st.shiftT -= dt;
   let rpm = rpmOf(car, st);
-  if(thr > 0 && rpm >= car.redline * 0.995 && st.gear < car.gears && st.shiftT <= 0){ st.gear++; st.shiftT = car.shift; st.shifted = true; rpm = rpmOf(car, st); }
+  if(st.manual){}
+  else if(thr > 0 && rpm >= car.redline * 0.995 && st.gear < car.gears && st.shiftT <= 0){ st.gear++; st.shiftT = car.shift; st.shifted = true; rpm = rpmOf(car, st); }
   else if(st.gear > 1 && st.shiftT <= 0){
     const down = car.redline * st.v / car.vg[st.gear - 1];
     if(rpm < car.redline * (thr > 0 ? 0.5 : 0.42) && down < car.redline * 0.9){ st.gear--; st.shiftT = car.shift * 0.6; rpm = rpmOf(car, st); }
   }
   let a = -car.kd * st.v * st.v - (st.v > 0.1 ? 0.015 * G : 0);
-  st.aDrive = 0;
+  st.aDrive = 0; st.limiter = false;
+  if(car.snd && car.snd.turbo){
+    // turbo lag: boost builds with revs and throttle, collapses when you lift
+    const b = st.boost || 0, tgt = thr > 0.3 ? clamp((rpm / car.redline - 0.28) / 0.35, 0, 1) : 0;
+    st.boost = b + (tgt - b) * Math.min(1, dt * (tgt > b ? 1.8 : 7));
+  }
   if(thr > 0 && st.shiftT <= 0){
     const x = st.gear === 1 ? Math.max(rpm, car.redline * 0.6) / car.redline : rpm / car.redline;
     if(st.gear === 1) rpm = Math.max(rpm, car.redline * 0.6 * thr);
-    st.aDrive = thr * Math.min(car.aTrac, car.peff * powerFrac(x) / (car.m * Math.max(st.v, 2)));
+    const pf = car.snd && car.snd.turbo ? 0.6 + 0.4 * (st.boost || 0) : 1;
+    st.aDrive = thr * Math.min(car.aTrac, car.peff * pf * powerFrac(x) / (car.m * Math.max(st.v, 2)));
+    if(rpm >= car.redline){ st.aDrive = 0; st.limiter = true; }
     a += st.aDrive;
-    if(rpm >= car.redline && st.gear === car.gears) a = Math.min(a, 0);
   } else if(thr <= 0) a -= 0.05 * G * (rpm / car.redline);
   st.rpm = rpm;
   return a;
@@ -465,17 +478,18 @@ function prepCar(car){
 const SHORT = {e30:'M3 E30', mustang:'Mustang GT', charger70:'Charger R/T ’70', hellcat:'Challenger Hellcat', c8:'Corvette C8', viper:'Viper GTS', gt3:'911 GT3', m3:'M3 E46', golf:'Golf GTI Mk2', elise:'Elise S1', svj:'Aventador SVJ', ae86:'AE86 Trueno', r34:'Skyline GT-R R34', supra:'Supra Mk IV', rx7:'RX-7 FD', miata:'MX-5 Miata NA'};
 // wheelbase m, front weight share, CG height m, grip balance (+ = understeer at the limit), engine voice
 const CHASSIS = {
-  mustang:[2.72, .53, .52, .04, {v:'v8', pops:1}], charger70:[2.97, .56, .55, .06, {v:'bigv8', pops:1}], hellcat:[2.95, .57, .53, .05, {v:'v8', sc:1, pops:1}],
-  c8:[2.72, .40, .45, .02, {v:'v8', pops:1}], viper:[2.44, .50, .47, .03, {v:'v10', pops:1}],
-  gt3:[2.46, .39, .45, .03, {v:'flat6'}], m3:[2.73, .51, .50, .03, {v:'i6'}], e30:[2.56, .52, .50, .02, {v:'i4', pops:1}], golf:[2.47, .62, .52, .07, {v:'i4'}],
-  elise:[2.30, .39, .42, .02, {v:'i4'}], svj:[2.70, .43, .45, .03, {v:'v12', pops:1}],
-  ae86:[2.40, .53, .50, .02, {v:'i4'}], r34:[2.665, .55, .50, .04, {v:'i6', turbo:1, pops:1}], supra:[2.55, .53, .49, .04, {v:'i6', turbo:1}],
-  rx7:[2.43, .50, .46, .02, {v:'rotary', turbo:1, pops:1}], miata:[2.27, .52, .46, .02, {v:'i4'}],
+  mustang:[2.72, .53, .52, .04, {v:'v8', pops:1}], charger70:[2.97, .56, .55, .06, {v:'bigv8', pops:1}], hellcat:[2.95, .57, .53, .05, {v:'v8', sc:1, pops:1, tweak:{muffler:1100, jitter:0.08}}],
+  c8:[2.72, .40, .45, .02, {v:'v8', pops:1, tweak:{muffler:1900, pipes:[2.1, 2.25]}}], viper:[2.44, .50, .47, .03, {v:'v10', pops:1}],
+  gt3:[2.46, .39, .45, .03, {v:'flat6'}], m3:[2.73, .51, .50, .03, {v:'i6'}], e30:[2.56, .52, .50, .02, {v:'i4', pops:1, tweak:{muffler:2400, pulseDeg:100}}], golf:[2.47, .62, .52, .07, {v:'i4', tweak:{muffler:1500}}],
+  elise:[2.30, .39, .42, .02, {v:'i4', tweak:{muffler:2200, pipes:[1.5]}}], svj:[2.70, .43, .45, .03, {v:'v12', pops:1}],
+  ae86:[2.40, .53, .50, .02, {v:'i4'}], r34:[2.665, .55, .50, .04, {v:'i6', turbo:1, pops:1, tweak:{muffler:1500}}], supra:[2.55, .53, .49, .04, {v:'i6', turbo:1, tweak:{muffler:1300, pipes:[2.8]}}],
+  rx7:[2.43, .50, .46, .02, {v:'rotary', turbo:1, pops:1}], miata:[2.27, .52, .46, .02, {v:'i4', tweak:{muffler:1400, pipes:[2.3]}}],
 };
 CARS.forEach(c => {
-  c.short = SHORT[c.id]; prepCar(c);
+  c.short = SHORT[c.id];
   const [L, wf, hcg, bal, snd] = CHASSIS[c.id];
-  Object.assign(c, {L, wf, h: hcg, bal, snd, kf: 0.85, kr: 1.12});
+  Object.assign(c, {L, wf, h: hcg, bal, snd, kf: 0.85, kr: 1.12, rhd: c.id === 'ae86' || c.id === 'r34'});
+  prepCar(c);
   c.a = L * (1 - wf); c.b = L * wf; c.Iz = c.m * c.a * c.b * 1.1;
   c.Kus = (1 / (16 * G)) * (1 / c.kf - 1 / c.kr);
 });
@@ -956,7 +970,7 @@ function drawLayer(img, off, y){
 }
 
 /* ================= game state ================= */
-const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'gold', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', paints: {}}, store.get('settings', {}));
+const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'gold', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', paints: {}}, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 let bests = store.get('bests', {});
 let player = null;
@@ -998,7 +1012,7 @@ function resetRun(attract){
   routeEnd = settings.route === 'full' ? fullEndZ : sprintEndZ;
   routeCurves = settings.route === 'full' ? TOTAL_CURVES : sprintCurves;
   position = startZ - PLAYER_Z - SEG * 3; playerX = 0.5; mph = 0; steer = 0; psi = 0; kCar = 0; vyB = 0; yawR = 0; lonA = 0; thrP = 0; brakeP = 0; latG = 0; lonG = 0;
-  drv.v = 0; drv.gear = 1; drv.shiftT = 0; drv.rpm = 850; raceT = 0; crashT = 0; shake = 0; flashT = 0; finT = 0;
+  drv.v = 0; drv.gear = 1; drv.shiftT = 0; drv.rpm = 850; drv.boost = 0; drv.manual = !attract && settings.gearbox === 'manual'; raceT = 0; crashT = 0; shake = 0; flashT = 0; finT = 0;
   nextCurve = 0; particles = []; scraping = false;
   stats = {top: 0, wrecks: 0, rails: 0, photos: 0, bumps: 0, maxG: 0};
   for(const c of curves) c.snapped = false;
@@ -1008,18 +1022,93 @@ function resetRun(attract){
 }
 
 /* ================= audio ================= */
-// Engine voices. Harmonics are orders of the 4-stroke cycle (rpm / 120 Hz): an engine with N cylinders
-// fires N times per cycle, so order N is the firing pulse. Uneven firing (cross-plane V8, odd-fire V10,
-// rotary) puts energy into the half orders, which is where the burble and the brap come from.
+// Physical exhaust model. Each cylinder fires at its real crank angle in the real firing order and
+// sends a pressure pulse down its bank's exhaust pipe. The pipe is a waveguide (delay line with an
+// open-end reflection), then a muffler. Uneven pulse spacing per bank is what makes a cross-plane V8
+// burble and an odd-fire V10 sound like a Viper; even spacing gives the V12 and flat-six their wail.
+const ENGINE_SRC = `
+class EngineGen {
+  constructor(sr){
+    this.sr = sr; this.theta = 0; this.rpm = 850; this.thr = 0; this.on = 0; this.lim = 0; this.vol = 0;
+    this.seed = 22222; this.cfg = null; this.pulses = []; this.t = 0; this.dc = [0, 0]; this.lpS = [0, 0, 0, 0];
+  }
+  rnd(){ let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.seed = x >>> 0; return this.seed / 4294967296; }
+  gauss(){ return (this.rnd() + this.rnd() + this.rnd() - 1.5) * 1.15; }
+  config(c){
+    this.cfg = c; const sr = this.sr;
+    this.banks = c.pipes.map(L => { const n = Math.max(4, Math.round(2 * L / 480 * sr)); return {buf: new Float32Array(n + 2), n, w: 0, lp: 0}; });
+    this.col = {buf: new Float32Array(Math.round(0.0045 * sr) + 2), w: 0};
+    this.pulses = []; this.lpS = [0, 0, 0, 0];
+  }
+  set(p){ this.rpm = p.rpm; this.thr = p.thr; this.on = p.on; this.lim = p.lim; this.vol = p.vol; }
+  fire(bank){
+    const c = this.cfg, over = this.thr < 0.06 && this.rpm > c.redline * 0.45;
+    let amp = (0.22 + 0.78 * this.thr) * (1 + c.jitter * (1 + 2.5 * Math.max(0, 1 - this.rpm / 2500)) * this.gauss());
+    if(this.lim && (this.t % 0.07) < 0.035) amp *= 0.06;
+    if(over) amp *= 0.35;
+    const degPerS = this.rpm / 60 * 360;
+    const dur = Math.max(10, Math.round(c.pulseDeg / degPerS * this.sr));
+    this.pulses.push({bank, k: 0, dur, amp: Math.max(0, amp), sharp: c.sharp});
+    if(over && c.pops && this.rnd() < 0.05) this.pulses.push({bank, k: 0, dur: Math.round(0.004 * this.sr), amp: 2.4 + this.rnd() * 2, sharp: 3, pop: 1});
+  }
+  sample(){
+    const c = this.cfg; if(!c) return 0;
+    const step = this.rpm / 60 * 360 / this.sr, prev = this.theta;
+    this.theta += step; let wrapped = false; if(this.theta >= 720){ this.theta -= 720; wrapped = true; }
+    for(const f of c.fire){ const a = f[0]; if(wrapped ? (a >= prev || a < this.theta) : (a >= prev && a < this.theta)) this.fire(f[1]); }
+    this.t += 1 / this.sr;
+    const x = [0, 0];
+    for(let i = this.pulses.length - 1; i >= 0; i--){
+      const p = this.pulses[i], u = p.k / p.dur;
+      let s = p.pop ? (this.rnd() * 2 - 1) : Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.6)), p.sharp) * Math.exp(-3 * u) + (this.rnd() - 0.5) * c.noise * (1 - u);
+      x[p.bank] += s * p.amp;
+      if(++p.k >= p.dur) this.pulses.splice(i, 1);
+    }
+    let out = 0;
+    for(let b = 0; b < this.banks.length; b++){
+      const B = this.banks[b];
+      const r = B.buf[(B.w + 1) % B.n];
+      B.lp += (r - B.lp) * c.pipeDamp;
+      const y = x[b] + c.refl * B.lp;
+      B.buf[B.w] = y; B.w = (B.w + 1) % B.n;
+      // DC block per bank
+      const d = y - this.dc[b] * 0.0; this.dc[b] = y;
+      out += y * (b === 0 ? 1 : c.bankMix);
+    }
+    // collector / muffler chamber
+    const C = this.col, ci = (C.w + 1) % C.buf.length;
+    const m = out + c.chamber * C.buf[ci]; C.buf[C.w] = m; C.w = (C.w + 1) % C.buf.length;
+    // 2-pole muffler lowpass that opens with throttle (valved exhausts)
+    const fc = Math.min(0.45, c.muffler * (0.65 + 0.7 * this.thr) / this.sr * 6.28);
+    this.lpS[0] += fc * (m - this.lpS[0]); this.lpS[1] += fc * (this.lpS[0] - this.lpS[1]);
+    let o = this.lpS[1];
+    // DC blocker
+    const hp = o - this.lpS[2] + 0.996 * this.lpS[3]; this.lpS[2] = o; this.lpS[3] = hp;
+    o = Math.tanh(hp * c.drive) / c.drive;
+    return o * this.vol;
+  }
+}
+if(typeof registerProcessor !== 'undefined'){
+  registerProcessor('engine', class extends AudioWorkletProcessor {
+    constructor(){ super(); this.g = new EngineGen(sampleRate); this.port.onmessage = e => { if(e.data.cfg) this.g.config(e.data.cfg); else this.g.set(e.data); }; }
+    process(_, outputs){ const o = outputs[0][0]; for(let i = 0; i < o.length; i++) o[i] = this.g.sample(); return true; }
+  });
+}
+`;
+// crank angles (0-720) and bank for each firing, in firing order
+function evenFire(n, banks){ const a = []; for(let i = 0; i < n; i++) a.push([i * 720 / n, banks ? banks[i] : 0]); return a; }
+function seqFire(intervals, banks){ let t = 0; return intervals.map((iv, i) => { const f = [t, banks[i]]; t += iv; return f; }); }
+const V8_CROSS = evenFire(8, [0, 1, 1, 0, 1, 0, 0, 1]);           // GM/Ford/Mopar 1-8-4-3-6-5-7-2, odd cylinders on the left bank
+const V10_ODD = seqFire([90, 54, 90, 54, 90, 54, 90, 54, 90, 54], [0, 1, 0, 1, 0, 1, 0, 1, 0, 1]);
 const VOICE = {
-  v8:     {h:{2:.35, 4:.95, 6:.3, 8:1, 10:.2, 12:.45, 16:.5, 20:.15, 24:.2}, rasp:.18, drive:1.4, bright:.8},
-  bigv8:  {h:{2:.5, 4:1, 6:.4, 8:.9, 12:.35, 16:.3}, rasp:.2, drive:1.6, bright:.6},
-  v10:    {h:{5:1, 10:.75, 15:.35, 20:.3, 3:.25, 7:.25, 2:.2}, rasp:.15, drive:1.3, bright:.7},
-  v12:    {h:{12:1, 24:.65, 6:.3, 36:.3, 18:.2, 48:.15}, rasp:.08, drive:1.1, bright:1.5},
-  flat6:  {h:{6:1, 12:.8, 3:.35, 18:.4, 24:.3, 36:.15}, rasp:.1, drive:1.2, bright:1.4},
-  i6:     {h:{6:1, 12:.55, 18:.3, 3:.12, 24:.15}, rasp:.1, drive:1.1, bright:1},
-  i4:     {h:{4:1, 8:.6, 2:.4, 12:.35, 16:.25, 6:.1}, rasp:.14, drive:1.3, bright:1},
-  rotary: {h:{4:1, 8:.85, 12:.75, 16:.65, 20:.55, 24:.4, 2:.35, 6:.3, 10:.25}, rasp:.22, drive:1.6, bright:1.4},
+  v8:     {fire: V8_CROSS, pipes: [2.6, 2.85], refl: -0.62, pipeDamp: 0.55, chamber: 0.25, bankMix: 0.9, muffler: 1300, pulseDeg: 120, sharp: 2, jitter: 0.06, noise: 0.25, drive: 1.6},
+  bigv8:  {fire: V8_CROSS, pipes: [3.0, 3.3], refl: -0.66, pipeDamp: 0.45, chamber: 0.3, bankMix: 0.95, muffler: 950, pulseDeg: 140, sharp: 2, jitter: 0.16, noise: 0.3, drive: 1.9},
+  v10:    {fire: V10_ODD, pipes: [1.3, 1.3], refl: -0.5, pipeDamp: 0.6, chamber: 0.15, bankMix: 1, muffler: 1700, pulseDeg: 100, sharp: 2, jitter: 0.06, noise: 0.3, drive: 1.7},
+  v12:    {fire: evenFire(12, [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), pipes: [1.7, 1.75], refl: -0.45, pipeDamp: 0.7, chamber: 0.1, bankMix: 1, muffler: 3200, pulseDeg: 70, sharp: 3, jitter: 0.02, noise: 0.12, drive: 1.3},
+  flat6:  {fire: evenFire(6, [0, 1, 0, 1, 0, 1]), pipes: [1.45, 1.5], refl: -0.5, pipeDamp: 0.65, chamber: 0.12, bankMix: 1, muffler: 2900, pulseDeg: 85, sharp: 3, jitter: 0.03, noise: 0.15, drive: 1.3},
+  i6:     {fire: evenFire(6), pipes: [2.3], refl: -0.55, pipeDamp: 0.6, chamber: 0.18, bankMix: 1, muffler: 2000, pulseDeg: 95, sharp: 2.5, jitter: 0.03, noise: 0.15, drive: 1.3},
+  i4:     {fire: evenFire(4), pipes: [2.0], refl: -0.58, pipeDamp: 0.6, chamber: 0.2, bankMix: 1, muffler: 1800, pulseDeg: 115, sharp: 2, jitter: 0.05, noise: 0.25, drive: 1.5},
+  rotary: {fire: evenFire(4), pipes: [1.6], refl: -0.5, pipeDamp: 0.7, chamber: 0.15, bankMix: 1, muffler: 2600, pulseDeg: 170, sharp: 0.7, jitter: 0.12, noise: 0.45, drive: 1.9},
 };
 const Snd = {
   a: null,
@@ -1030,25 +1119,32 @@ const Snd = {
     // a silent blip unlocks audio on iPhone and iPad
     try{ const b = a.createBuffer(1, 1, 22050), s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start(0); }catch(e){}
     if(a.state !== 'running') a.resume();
-    this.master = a.createGain(); this.master.gain.value = settings.sound === 'on' ? 0.6 : 0;
-    const comp = a.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    this.master = a.createGain(); this.master.gain.value = settings.sound === 'on' ? 0.7 : 0;
+    const comp = a.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
     this.master.connect(comp); comp.connect(a.destination);
     const len = a.sampleRate * 2, buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
     for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this.buf = buf;
     const noise = () => { const s = a.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random() * 2); return s; };
-    // engine: periodic wave -> waveshaper -> lowpass -> gain
-    this.osc = a.createOscillator();
-    this.shaper = a.createWaveShaper(); this.shaper.oversample = '2x';
-    this.lp = a.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.Q.value = 0.9;
-    this.eg = a.createGain(); this.eg.gain.value = 0;
-    this.osc.connect(this.shaper); this.shaper.connect(this.lp); this.lp.connect(this.eg); this.eg.connect(this.master);
-    // exhaust rasp: noise amplitude-modulated at the firing frequency
-    this.rn = noise(); this.rbp = a.createBiquadFilter(); this.rbp.type = 'bandpass'; this.rbp.Q.value = 1.2;
-    this.rg = a.createGain(); this.rg.gain.value = 0;
-    this.am = a.createOscillator(); this.am.type = 'square'; this.amg = a.createGain(); this.amg.gain.value = 0;
-    this.am.connect(this.amg); this.amg.connect(this.rg.gain);
-    this.rn.connect(this.rbp); this.rbp.connect(this.rg); this.rg.connect(this.eg);
+    // engine node: AudioWorklet where available, script processor otherwise
+    this.eng = a.createGain(); this.eng.gain.value = 1; this.eng.connect(this.master);
+    const fallback = () => {
+      const Gen = new Function(ENGINE_SRC + '; return EngineGen;')();
+      this.gen = new Gen(a.sampleRate);
+      const sp = a.createScriptProcessor(1024, 0, 1);
+      sp.onaudioprocess = e => { const o = e.outputBuffer.getChannelData(0); for(let i = 0; i < o.length; i++) o[i] = this.gen.sample(); };
+      sp.connect(this.eng); this.node = sp; this.post = m => m.cfg ? this.gen.config(m.cfg) : this.gen.set(m);
+      this.ready();
+    };
+    try{
+      if(a.audioWorklet){
+        const url = URL.createObjectURL(new Blob([ENGINE_SRC], {type: 'application/javascript'}));
+        a.audioWorklet.addModule(url).then(() => {
+          const n = new AudioWorkletNode(a, 'engine', {numberOfInputs: 0, outputChannelCount: [1]});
+          n.connect(this.eng); this.node = n; this.post = m => n.port.postMessage(m); this.ready();
+        }).catch(fallback);
+      } else fallback();
+    }catch(e){ fallback(); }
     // turbo whistle / supercharger whine
     this.tw = a.createOscillator(); this.tw.type = 'sine'; this.twg = a.createGain(); this.twg.gain.value = 0;
     this.tw.connect(this.twg); this.twg.connect(this.master);
@@ -1059,67 +1155,47 @@ const Snd = {
     this.sqg = a.createGain(); this.sqg.gain.value = 0; this.sq.connect(this.sqg); this.sqg.connect(this.master);
     this.sn = noise(); this.sbp = a.createBiquadFilter(); this.sbp.type = 'bandpass'; this.sbp.frequency.value = 1700; this.sbp.Q.value = 3;
     this.sg = a.createGain(); this.sg.gain.value = 0; this.sn.connect(this.sbp); this.sbp.connect(this.sg); this.sg.connect(this.master);
-    // wind and gravel
+    // wind, gravel, rain
     this.wn = noise(); this.wlp = a.createBiquadFilter(); this.wlp.type = 'lowpass'; this.wlp.frequency.value = 700;
     this.wg = a.createGain(); this.wg.gain.value = 0; this.wn.connect(this.wlp); this.wlp.connect(this.wg); this.wg.connect(this.master);
     this.gn = noise(); this.glp = a.createBiquadFilter(); this.glp.type = 'lowpass'; this.glp.frequency.value = 260;
     this.gg = a.createGain(); this.gg.gain.value = 0; this.gn.connect(this.glp); this.glp.connect(this.gg); this.gg.connect(this.master);
-    for(const o of [this.osc, this.am, this.tw, this.sq, this.lfo]) o.start();
-    this.voiceFor = null; this.boost = 0; this.lastThr = 0; this.lastRpm = 0;
+    this.rn = noise(); this.rhp = a.createBiquadFilter(); this.rhp.type = 'highpass'; this.rhp.frequency.value = 2500;
+    this.rg = a.createGain(); this.rg.gain.value = 0; this.rn.connect(this.rhp); this.rhp.connect(this.rg); this.rg.connect(this.master);
+    for(const o of [this.tw, this.sq, this.lfo]) o.start();
+    this.lastThr = 0;
   },
-  setOn(on){ if(this.master) this.master.gain.setTargetAtTime(on ? 0.6 : 0, this.a.currentTime, 0.05); },
+  ready(){ this.voiceFor = null; if(this.car) this.voice(this.car); },
+  setOn(on){ if(this.master) this.master.gain.setTargetAtTime(on ? 0.7 : 0, this.a.currentTime, 0.05); },
   voice(car){
-    if(!this.a || this.voiceFor === car.id) return;
+    this.car = car;
+    if(!this.a || !this.post || this.voiceFor === car.id) return;
     this.voiceFor = car.id;
-    const V = VOICE[car.snd.v], N = 64, re = new Float32Array(N), im = new Float32Array(N), R = rng(car.id.length * 97);
-    for(let k = 1; k < N; k++){
-      let amp = (V.h[k] || 0) + 0.04 * R() / Math.sqrt(k);
-      if(!V.h[k] && k > 6) amp += 0.03 * V.bright / k;
-      im[k] = amp * (R() < 0.5 ? 1 : -1);
-    }
-    this.osc.setPeriodicWave(this.a.createPeriodicWave(re, im, {disableNormalization: false}));
-    const curve = new Float32Array(1024), dr = V.drive;
-    for(let i = 0; i < 1024; i++){ const x = i / 511.5 - 1; curve[i] = Math.tanh(dr * x) / Math.tanh(dr); }
-    this.shaper.curve = curve;
-    this.V = V; this.car = car;
+    this.post({cfg: Object.assign({}, VOICE[car.snd.v], car.snd.tweak || {}, {redline: car.redline, pops: !!car.snd.pops})});
   },
-  engine(rpm, thr, on, onLimiter){
-    if(!this.a || !this.V) return;
-    const t = this.a.currentTime, V = this.V, car = this.car, f0 = rpm / 120;
-    const order = car.snd.v === 'v12' ? 12 : car.snd.v === 'v10' ? 5 : car.snd.v === 'i4' || car.snd.v === 'rotary' ? 4 : car.snd.v === 'flat6' || car.snd.v === 'i6' ? 6 : 8;
-    this.osc.frequency.setTargetAtTime(f0, t, 0.02);
-    this.am.frequency.setTargetAtTime(f0 * order, t, 0.02);
-    this.rbp.frequency.setTargetAtTime(Math.min(4000, f0 * order * 2.2), t, 0.03);
-    const load = 0.35 + thr * 0.65, r = rpm / car.redline;
-    this.lp.frequency.setTargetAtTime(250 + V.bright * (rpm * 0.18 + thr * 600), t, 0.05);
-    const chop = onLimiter ? (Math.sin(t * 75) > 0 ? 0.35 : 1) : 1;
-    this.eg.gain.setTargetAtTime(on ? (0.1 + 0.1 * load + 0.05 * r) * chop : 0, t, onLimiter ? 0.005 : 0.05);
-    this.rg.gain.setTargetAtTime(on ? V.rasp * (0.04 + 0.12 * thr * r) : 0, t, 0.05);
-    this.amg.gain.setTargetAtTime(on ? V.rasp * (0.04 + 0.1 * thr * r) : 0, t, 0.05);
-    // forced induction
+  engine(rpm, thr, on, lim, boost){
+    if(!this.a) return;
+    const car = this.car, r = rpm / car.redline;
+    if(this.post) this.post({rpm, thr, on: on ? 1 : 0, lim: lim ? 1 : 0, vol: on ? 0.55 + 0.2 * r : 0});
+    const t = this.a.currentTime;
     if(car.snd.turbo){
-      this.boost += ((thr > 0.5 && r > 0.45 ? 1 : 0) - this.boost) * (thr > 0.5 ? 0.04 : 0.25);
-      this.tw.frequency.setTargetAtTime(1800 + this.boost * 3200 + rpm * 0.1, t, 0.05);
-      this.twg.gain.setTargetAtTime(on ? this.boost * 0.025 : 0, t, 0.05);
-      if(on && this.lastThr > 0.6 && thr < 0.2 && this.boost > 0.5){ this.burst(5000, 0.35, 0.18, 'highpass'); this.boost = 0; }
+      this.tw.frequency.setTargetAtTime(1600 + boost * 3400 + rpm * 0.1, t, 0.05);
+      this.twg.gain.setTargetAtTime(on ? boost * 0.02 : 0, t, 0.05);
+      if(on && this.lastThr > 0.6 && thr < 0.2 && boost > 0.5) this.burst(4500, 0.4, 0.12, 'highpass');
     } else if(car.snd.sc){
       this.tw.frequency.setTargetAtTime(rpm * 0.55, t, 0.02);
-      this.twg.gain.setTargetAtTime(on ? 0.008 + 0.03 * thr * r : 0, t, 0.05);
+      this.twg.gain.setTargetAtTime(on ? 0.006 + 0.022 * thr * r : 0, t, 0.05);
     } else this.twg.gain.setTargetAtTime(0, t, 0.05);
-    // overrun crackle when lifting off at high revs
-    if(on && car.snd.pops && this.lastThr > 0.6 && thr < 0.2 && r > 0.55){
-      const k = 3 + (Math.random() * 5 | 0);
-      for(let i = 0; i < k; i++) setTimeout(() => this.burst(900 + Math.random() * 900, 0.06, 0.35 + Math.random() * 0.3, 'lowpass'), 60 + Math.random() * 650);
-    }
-    this.lastThr = thr; this.lastRpm = rpm;
+    this.lastThr = thr;
   },
-  road(skid, mphV, offroad, on){
+  road(skid, mphV, offroad, on, wet){
     if(!this.a) return; const t = this.a.currentTime;
-    this.sqg.gain.setTargetAtTime(on ? skid * 0.03 : 0, t, 0.08);
+    this.sqg.gain.setTargetAtTime(on && !wet ? skid * 0.03 : 0, t, 0.08);
     this.sq.frequency.setTargetAtTime(780 + skid * 260, t, 0.1);
-    this.sg.gain.setTargetAtTime(on ? skid * 0.07 : 0, t, 0.08);
+    this.sg.gain.setTargetAtTime(on ? skid * (wet ? 0.03 : 0.07) : 0, t, 0.08);
     this.wg.gain.setTargetAtTime(on ? Math.min(0.25, Math.pow(mphV / 90, 2) * 0.08) : 0, t, 0.1);
     this.gg.gain.setTargetAtTime(on && offroad ? Math.min(0.2, mphV / 100) : 0, t, 0.05);
+    this.rg.gain.setTargetAtTime(on && wet ? 0.03 + Math.min(0.08, mphV / 600) : 0, t, 0.2);
   },
   burst(freq, dur, vol, type){
     if(!this.a) return; const a = this.a, t = a.currentTime;
@@ -1163,9 +1239,10 @@ function update(dt){
   along -= G * (ps.p2.world.y - ps.p1.world.y) / SEG;
   offroad = Math.abs(playerX) > 1.08;
   if(offroad && drv.v > 0.5) along -= 0.16 * G + drv.v * 0.12;
-  const bA = drv.v > 0.05 ? brakeP * car.brakeG * G : 0;
+  const wet = settings.road === 'wet' && !attract;
+  const bA = drv.v > 0.05 ? brakeP * car.brakeG * G * (wet ? 0.7 : 1) : 0;
   locked = !car.abs && brakeP > 0.9 && drv.v > 4;
-  const mu = car.grip * (offroad ? 0.55 : 1);
+  const mu = car.grip * (offroad ? 0.55 : 1) * (wet ? 0.7 : 1);
   const kRoad = ps.curve / CURVE_R;
   const assist = attract || settings.assist !== 'off';
 
@@ -1330,8 +1407,8 @@ function update(dt){
   const quiet = attract || state === 'paused';
   Snd.voice(car);
   const revving = state === 'countdown' && input.gas;
-  Snd.engine(drv.shiftT > 0 ? drv.rpm * 0.9 : drv.rpm, revving ? 1 : thrP * escCut, !quiet, (thrP > 0.5 || revving) && drv.rpm >= car.redline * 0.985);
-  Snd.road(skid, mph, offroad && mph > 5, !quiet);
+  Snd.engine(drv.shiftT > 0 ? drv.rpm * 0.9 : drv.rpm, revving ? 1 : drv.shiftT > 0 ? 0 : thrP * escCut, !quiet, (thrP > 0.5 || revving) && drv.rpm >= car.redline * 0.985, drv.boost || 0);
+  Snd.road(skid, mph, offroad && mph > 5, !quiet, settings.road === 'wet');
 }
 function playerW(){ return CAR_W / CAM_H * W / 2; }
 function autopilot(ps, car){
@@ -1376,6 +1453,7 @@ function drawSegment(s){
   poly(a.x - a.w - r1, a.y, a.x - a.w, a.y, b.x - b.w, b.y, b.x - b.w - r2, b.y, pal.shoulder[c]);
   poly(a.x + a.w + r1, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x + b.w + r2, b.y, pal.shoulder[c]);
   poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, pal.road[c]);
+  if(settings.road === 'wet' && state !== 'attract'){ poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, 'rgba(8,14,24,.22)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.5, 0.18, 'rgba(190,205,225,.06)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.5, 0.18, 'rgba(190,205,225,.06)'); }
   if(s.patch) stripe(a.x, a.y, a.w, b.x, b.y, b.w, s.patch[0], s.patch[1], 'rgba(0,0,0,.09)');
   if(s.marks && b.w > 3){ const o = s.marks; stripe(a.x, a.y, a.w, b.x, b.y, b.w, o - 0.13, 0.012, 'rgba(15,15,15,.28)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, o + 0.13, 0.012, 'rgba(15,15,15,.28)'); }
   if(b.w > 6){
@@ -1408,8 +1486,9 @@ function drawSprite(img, ww, sc, x, y, clip){
   return {dw, dh, dx, dy};
 }
 function render(){
-  const hood = settings.cam === 'hood' && state !== 'attract';
-  const rp = hood ? position + PLAYER_Z - SEG * 1.5 : position, camH = hood ? 430 : CAM_H;
+  const view = state === 'attract' ? 'chase' : settings.cam, hood = view !== 'chase', cockpit = view === 'cockpit';
+  const rp = hood ? position + PLAYER_Z - SEG * (cockpit ? 1 : 1.5) : position, camH = cockpit ? 470 : hood ? 430 : CAM_H;
+  const wet = settings.road === 'wet' && state !== 'attract';
   const base = segAt(rp), basePct = (rp % SEG) / SEG;
   const ps = segAt(position + PLAYER_Z), pPct = ((position + PLAYER_Z) % SEG) / SEG;
   const playerY = lerp(ps.p1.world.y, ps.p2.world.y, pPct);
@@ -1420,11 +1499,11 @@ function render(){
   drawLayer(skyImg, skyOff, 0);
   drawLayer(layers[0], hillOff * 0.6, 0); drawLayer(layers[1], hillOff, 0); drawLayer(layers[2], treeOff, 0);
   let maxy = VH, x = 0, dx = -(base.curve * basePct);
-  const camX = playerX * ROAD, camY = playerY + camH;
+  const camX = (playerX + (cockpit ? (player.car.rhd ? 0.09 : -0.09) : 0)) * ROAD, camY = playerY + camH;
   const last = Math.min(segments.length - 1, base.index + DRAW);
   for(let i = base.index; i <= last; i++){
     const s = segments[i], n = i - base.index;
-    s.fog = expFog(n / DRAW, pal.fogD); s.clip = maxy;
+    s.fog = expFog(n / DRAW, pal.fogD * (wet ? 1.6 : 1)); s.clip = maxy;
     project(s.p1, camX - x, camY, rp);
     project(s.p2, camX - x - dx, camY, rp);
     x += dx; dx += s.curve;
@@ -1458,7 +1537,7 @@ function render(){
     ctx.globalAlpha = 1;
     if(s === ps && !hood) drawPlayer();
   }
-  if(hood) drawHood();
+  if(hood && !cockpit) drawHood();
   if(nightMask){ ctx.drawImage(nightMask, (W - nightMask.width) / 2 + steer * W * 0.04, 0); }
   if(night){
     ctx.globalCompositeOperation = 'lighter';
@@ -1473,6 +1552,8 @@ function render(){
     if(p.smoke){ ctx.fillStyle = p.c + (0.35 * t).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
     else { ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.r * 2, p.r * 2); }
   }
+  if(wet) drawRain();
+  if(cockpit) drawCockpit();
   if(flashT > 0){ ctx.fillStyle = `rgba(255,255,255,${flashT / 0.18 * 0.7})`; ctx.fillRect(0, 0, W, VH); }
   ctx.restore();
   if(VH < H){
@@ -1499,6 +1580,73 @@ function drawPlayer(){
   ctx.restore();
 }
 
+let rain = [];
+function drawRain(){
+  if(rain.length !== 140) rain = Array.from({length: 140}, () => [Math.random(), Math.random(), 0.6 + Math.random() * 0.8]);
+  const sp = 0.012 + mph * 0.0004, slant = -steer * 0.15 - 0.08;
+  ctx.save(); ctx.translate(-yawX, 0);
+  ctx.strokeStyle = 'rgba(200,215,230,.35)'; ctx.lineWidth = Math.max(1, DPR); ctx.beginPath();
+  for(const r of rain){
+    r[1] += sp * r[2]; if(r[1] > 1){ r[1] = 0; r[0] = Math.random(); }
+    const x = r[0] * W, y = r[1] * VH, l = VH * (0.025 + mph * 0.0006) * r[2];
+    ctx.moveTo(x, y); ctx.lineTo(x + slant * l, y + l);
+  }
+  ctx.stroke(); ctx.restore();
+}
+function drawCockpit(){
+  const car = player.car, rhd = car.rhd, paint = player.paint;
+  ctx.save(); ctx.translate(-yawX, 0);
+  const dark = pal.night ? '#060708' : '#121316', dark2 = pal.night ? '#030304' : '#0a0b0d';
+  // headliner and A-pillars
+  ctx.fillStyle = dark; ctx.fillRect(-W * 0.1, 0, W * 1.2, VH * 0.07);
+  ctx.beginPath(); ctx.moveTo(-W * 0.1, 0); ctx.lineTo(W * 0.08, 0); ctx.lineTo(W * 0.17, VH * 0.74); ctx.lineTo(-W * 0.1, VH * 0.8); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(W * 1.1, 0); ctx.lineTo(W * 0.92, 0); ctx.lineTo(W * 0.83, VH * 0.74); ctx.lineTo(W * 1.1, VH * 0.8); ctx.closePath(); ctx.fill();
+  // rear-view mirror
+  const mx = W / 2 - W * 0.09, my = VH * 0.075;
+  ctx.fillStyle = dark2; rr(ctx, mx - 4 * DPR, my - 4 * DPR, W * 0.18 + 8 * DPR, VH * 0.075 + 8 * DPR, 10 * DPR); ctx.fill();
+  const mg = ctx.createLinearGradient(0, my, 0, my + VH * 0.075); mg.addColorStop(0, pal.sky[1]); mg.addColorStop(1, pal.grass[0]);
+  ctx.fillStyle = mg; rr(ctx, mx, my, W * 0.18, VH * 0.075, 7 * DPR); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(mx, my, W * 0.18, VH * 0.02);
+  // dashboard
+  const dy = VH * 0.72;
+  const dg = ctx.createLinearGradient(0, dy, 0, VH); dg.addColorStop(0, '#2a2c30'); dg.addColorStop(0.08, dark); dg.addColorStop(1, dark2);
+  ctx.fillStyle = dg; ctx.beginPath(); ctx.moveTo(-W * 0.1, VH); ctx.lineTo(-W * 0.1, dy + VH * 0.04);
+  ctx.quadraticCurveTo(W / 2, dy - VH * 0.05, W * 1.1, dy + VH * 0.04); ctx.lineTo(W * 1.1, VH); ctx.closePath(); ctx.fill();
+  // gauges behind the wheel
+  const wx = W / 2 + (rhd ? 1 : -1) * W * 0.21, wy = VH * 1.03, R = Math.min(W * 0.2, VH * 0.36);
+  const gauge = (gx, val, max, red, label) => {
+    const gr = R * 0.24, gy = VH * 0.82;
+    ctx.fillStyle = '#050506'; ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a3d42'; ctx.lineWidth = 2 * DPR; ctx.stroke();
+    const a0 = Math.PI * 0.75, span = Math.PI * 1.5;
+    ctx.strokeStyle = pal.night ? '#f2a54a' : '#d9dde0'; ctx.lineWidth = 1.5 * DPR;
+    for(let i = 0; i <= 10; i++){ const a = a0 + span * i / 10; ctx.beginPath(); ctx.moveTo(gx + Math.cos(a) * gr * 0.78, gy + Math.sin(a) * gr * 0.78); ctx.lineTo(gx + Math.cos(a) * gr * 0.92, gy + Math.sin(a) * gr * 0.92); ctx.stroke(); }
+    if(red){ ctx.strokeStyle = '#d22'; ctx.lineWidth = 3 * DPR; ctx.beginPath(); ctx.arc(gx, gy, gr * 0.86, a0 + span * red, a0 + span); ctx.stroke(); }
+    const a = a0 + span * clamp(val / max, 0, 1);
+    ctx.strokeStyle = '#ff5a2a'; ctx.lineWidth = 2.5 * DPR; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(a) * gr * 0.8, gy + Math.sin(a) * gr * 0.8); ctx.stroke();
+    ctx.fillStyle = '#9aa0a6'; ctx.font = `600 ${Math.round(gr * 0.22)}px "Chakra Petch",sans-serif`; ctx.textAlign = 'center'; ctx.fillText(label, gx, gy + gr * 0.55);
+  };
+  gauge(wx - R * 0.3, drv.rpm, car.redline * 1.15, 1 / 1.15, 'RPM');
+  gauge(wx + R * 0.3, mph, Math.ceil(car.top / 20) * 20 + 20, 0, 'MPH');
+  // steering wheel turns with the real steering angle (about 15:1 ratio)
+  const rot = clamp(deltaVis * 15, -2.6, 2.6);
+  ctx.save(); ctx.translate(wx, wy); ctx.rotate(rot);
+  ctx.strokeStyle = '#18191c'; ctx.lineWidth = R * 0.13; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = R * 0.03; ctx.beginPath(); ctx.arc(0, 0, R * 1.03, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  ctx.fillStyle = '#1d1f22';
+  ctx.fillRect(-R * 0.95, -R * 0.06, R * 0.62, R * 0.16); ctx.fillRect(R * 0.33, -R * 0.06, R * 0.62, R * 0.16);
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = paint; ctx.beginPath(); ctx.arc(0, -R * 0.02, R * 0.09, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f2c230'; ctx.fillRect(-R * 0.03, -R * 1.07, R * 0.06, R * 0.13);
+  ctx.restore();
+  // wipers in the rain
+  if(settings.road === 'wet'){
+    const t = performance.now() / 1000, sw = (Math.sin(t * 2.6) * 0.5 + 0.5) * 1.6;
+    ctx.strokeStyle = '#08090a'; ctx.lineWidth = 4 * DPR; ctx.lineCap = 'round';
+    for(const bx of [W * 0.3, W * 0.62]){ ctx.beginPath(); ctx.moveTo(bx, dy); ctx.lineTo(bx + Math.cos(Math.PI + sw * 0.9) * -W * 0.25, dy - Math.sin(sw * 0.9) * VH * 0.45); ctx.stroke(); }
+  }
+  ctx.restore();
+}
 function drawHood(){
   ctx.save(); ctx.translate(-yawX, 0);
   const paint = player.paint, y0 = VH * 0.84;
@@ -1562,6 +1710,7 @@ function startRace(){
   state = 'countdown'; cdT = 3.99;
   show(null); $('#hud').hidden = false;
   for(const k in last) delete last[k];
+  document.body.classList.toggle('manualbox', settings.gearbox === 'manual'); drv.manual = settings.gearbox === 'manual';
   document.body.classList.toggle('wheelmode', settings.steer === 'wheel'); document.body.classList.toggle('tiltmode', settings.steer === 'tilt'); setWheel(0);
   hud.curveTot.textContent = routeCurves; hud.mileTot.textContent = settings.route === 'full' ? FULL_MI : SPRINT_MI;
   const b = bests[bestKey()]; hud.best.textContent = b ? 'Best ' + fmtTime(b) : '';
@@ -1679,6 +1828,15 @@ function enableTilt(){
 // iOS: unlock audio on the first real tap, stop pinch-zoom and double-tap zoom
 ['touchend', 'click', 'keydown'].forEach(ev => addEventListener(ev, () => Snd.init(), {passive: true}));
 ['gesturestart', 'gesturechange', 'dblclick'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), {passive: false}));
+function shift(d){
+  if(state !== 'race' || settings.gearbox !== 'manual' || drv.shiftT > 0) return;
+  const car = player.car, g = drv.gear + d;
+  if(g < 1 || g > car.gears) return;
+  if(d < 0 && car.redline * drv.v / car.vg[g] > car.redline * 1.03){ showToast('Too fast for ' + g, true, 600); return; }
+  drv.gear = g; drv.shiftT = car.shift;
+}
+for(const [id, d] of [['#shUp', 1], ['#shDn', -1]]){ const b = $(id); b.addEventListener('pointerdown', e => { e.preventDefault(); b.classList.add('on'); shift(d); }); for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => b.classList.remove('on')); }
+addEventListener('keydown', e => { if(e.repeat) return; if(e.code === 'KeyE' || e.code === 'ShiftRight') shift(1); if(e.code === 'KeyQ' || e.code === 'ControlRight') shift(-1); });
 const KEYS = {ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake', Space: 'brake'};
 addEventListener('keydown', e => {
   if(KEYS[e.code]){ input[KEYS[e.code]] = true; if(state !== 'attract') e.preventDefault(); }
