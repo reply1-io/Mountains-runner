@@ -11,7 +11,7 @@ Open `index.html` in any phone or desktop browser. No build step and no dependen
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
 - Realistic driving model: power, aero drag and gearing fitted to each car's real 0-60 and top speed; tire grip shared between braking and cornering (friction circle); no-ABS cars lose steering under hard braking; real road grades
 - Engine sound from a physical exhaust model: every cylinder fires in the car's real firing order into a modeled exhaust pipe and muffler, plus turbo whistle and blow-off, supercharger whine and overrun crackle
-- Turbo lag, automatic or manual gears with shift buttons (Q/E on a keyboard), wet roads with rain
+- Turbo lag and optional anti-lag (bangs and flames off throttle), automatic or manual gears with shift buttons (Q/E on a keyboard), wet roads with rain
 - Chase, hood or cockpit camera (working gauges, steering wheel that turns with the front wheels, right-hand drive in the AE86 and R34), button or drag-wheel steering, and a full-sim mode with steering assist turned off
 - Two routes: the 3-mile sprint or the full 11-mile Dragon, with a curve counter and mile markers
 - Named corners (Copperhead Corner, Gravity Cavity, Shade Tree Corner, Wheelie Hell, Brake or Bust Bend), the Tree of Shame, guardrails, cliffs and October foliage

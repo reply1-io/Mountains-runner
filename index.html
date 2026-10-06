@@ -268,6 +268,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,9.5vw,84px)
             <div class="opt"><span>Time</span><div class="seg" data-opt="tod"><button data-v="fog">Morning fog</button><button data-v="gold">Golden hour</button><button data-v="night">Night</button></div></div>
             <div class="opt"><span>Camera</span><div class="seg" data-opt="cam"><button data-v="chase">Chase</button><button data-v="hood">Hood</button><button data-v="cockpit">Cockpit</button></div></div>
             <div class="opt"><span>Gears</span><div class="seg" data-opt="gearbox"><button data-v="auto">Automatic</button><button data-v="manual">Manual</button></div></div>
+            <div class="opt"><span>Anti-lag</span><div class="seg" data-opt="antilag"><button data-v="off">Off</button><button data-v="on">On (turbo cars)</button></div></div>
             <div class="opt"><span>Road</span><div class="seg" data-opt="road"><button data-v="dry">Dry</button><button data-v="wet">Wet</button></div></div>
             <div class="opt"><span>Steering</span><div class="seg" data-opt="steer"><button data-v="buttons">Buttons</button><button data-v="wheel">Drag wheel</button><button data-v="tilt">Tilt</button></div></div>
             <div class="opt"><span>Assist</span><div class="seg" data-opt="assist"><button data-v="on">Steering assist</button><button data-v="off">Full sim</button></div></div>
@@ -443,7 +444,7 @@ function driveAccel(car, st, thr, dt){
   st.aDrive = 0; st.limiter = false;
   if(car.snd && car.snd.turbo){
     // turbo lag: boost builds with revs and throttle, collapses when you lift
-    const b = st.boost || 0, tgt = thr > 0.3 ? clamp((rpm / car.redline - 0.28) / 0.35, 0, 1) : 0;
+    const b = st.boost || 0, tgt = thr > 0.3 ? clamp((rpm / car.redline - 0.28) / 0.35, 0, 1) : st.als && rpm > car.redline * 0.3 ? 0.9 : 0;
     st.boost = b + (tgt - b) * Math.min(1, dt * (tgt > b ? 1.8 : 7));
   }
   if(thr > 0 && st.shiftT <= 0){
@@ -659,44 +660,78 @@ function drawMoto(g, W, H, jacket, helmet, bike, view){
 /* ================= drawing: scenery sprites ================= */
 const SP = {};
 const AUTUMN = [['#d9622b','#e8892f','#b8442a','#f0b44a'], ['#c33b2c','#9e2b25','#e2683a','#7e2620'], ['#e6b43c','#f1cd5d','#c98b2a','#d9a034'], ['#5f7a33','#7d8f3c','#d18a35','#a3762c'], ['#3f5f2f','#4f7036','#2f4a27','#6b7f36']];
-function makePine(R){ return mk(140, 260, (g, w, h) => {
-  g.fillStyle = '#4a3424'; g.fillRect(w / 2 - 7, h * 0.78, 14, h * 0.22);
-  for(let k = 0; k < 5; k++){
-    const top = h * (0.02 + k * 0.15), bot = h * (0.28 + k * 0.13), hw = w * (0.16 + k * 0.075);
-    g.fillStyle = k % 2 ? '#1f3d2c' : '#26482f';
-    g.beginPath(); g.moveTo(w / 2, top);
-    const teeth = 8; for(let t = 0; t <= teeth; t++){ const x = w / 2 + hw - 2 * hw * (t / teeth); g.lineTo(x, bot - (t % 2 ? h * 0.03 : 0)); }
-    g.closePath(); g.fill();
-    g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.moveTo(w / 2, top); g.lineTo(w / 2 + hw, bot); g.lineTo(w / 2 + hw * 0.2, bot); g.closePath(); g.fill();
+// light comes from the upper left; each leaf is shaded by which side of its cluster it sits on
+function leaves(g, x, y, r, cols, R, n, sx, sy){
+  for(let i = 0; i < n; i++){
+    const a = R() * 6.283, d = Math.sqrt(R()) * r, px = x + Math.cos(a) * d * (sx || 1), py = y + Math.sin(a) * d * (sy || 0.85);
+    const lit = clamp(0.5 + (-(px - x) * 0.6 - (py - y) * 0.8) / r * 0.55, 0, 1);
+    g.fillStyle = shade(cols[(R() * cols.length) | 0], -0.5 + lit * 0.6 + (R() - 0.5) * 0.14);
+    const lr = 1.5 + R() * 2.4; g.beginPath(); g.ellipse(px, py, lr, lr * 0.7, R() * 3, 0, 6.283); g.fill();
+  }
+}
+function makePine(R){ return mk(170, 340, (g, w, h) => {
+  const cx = w / 2, cols = ['#1f3b29', '#24452f', '#2d5236', '#1a3324', '#33573a'];
+  const bg = g.createLinearGradient(cx - 6, 0, cx + 6, 0); bg.addColorStop(0, '#5a4130'); bg.addColorStop(1, '#2f2219');
+  g.fillStyle = bg; g.beginPath(); g.moveTo(cx - 7, h); g.lineTo(cx - 2, h * 0.05); g.lineTo(cx + 2, h * 0.05); g.lineTo(cx + 7, h); g.closePath(); g.fill();
+  const tiers = 13;
+  for(let k = 0; k < tiers; k++){
+    const y = h * (0.04 + k * 0.064), hw = w * (0.05 + k * 0.034) * (0.85 + R() * 0.3);
+    for(const sd of [-1, 1]) for(let j = 0; j < 3; j++){
+      const len = hw * (0.7 + R() * 0.35), droop = h * (0.025 + k * 0.003), yy = y + j * h * 0.012;
+      g.strokeStyle = '#2a2017'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx, yy); g.quadraticCurveTo(cx + sd * len * 0.5, yy - 2, cx + sd * len, yy + droop); g.stroke();
+      for(let q = 0; q < 9; q++){ const t = (q + R()) / 9; leaves(g, cx + sd * len * t, yy + droop * t * t, 5 + 6 * (1 - t), cols, R, 9, 1.4, 0.45); }
+    }
   }
 }); }
-function makeOak(R, cols){ return mk(200, 230, (g, w, h) => {
-  g.strokeStyle = '#3d2c22'; g.lineCap = 'round';
-  g.lineWidth = 14; g.beginPath(); g.moveTo(w / 2, h); g.lineTo(w / 2 + 4, h * 0.45); g.stroke();
-  g.lineWidth = 6; g.beginPath(); g.moveTo(w / 2, h * 0.62); g.lineTo(w * 0.28, h * 0.38); g.moveTo(w / 2 + 2, h * 0.56); g.lineTo(w * 0.74, h * 0.34); g.stroke();
-  for(let i = 0; i < 34; i++){
-    const a = R() * Math.PI * 2, d = Math.sqrt(R());
-    const x = w / 2 + Math.cos(a) * d * w * 0.36, y = h * 0.38 + Math.sin(a) * d * h * 0.28;
-    const r = w * (0.07 + R() * 0.08);
-    g.fillStyle = cols[(R() * cols.length) | 0];
-    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+function makeOak(R, cols){ return mk(280, 320, (g, w, h) => {
+  const cx = w / 2;
+  const bg = g.createLinearGradient(cx - 10, 0, cx + 10, 0); bg.addColorStop(0, '#6b5847'); bg.addColorStop(0.5, '#4a3b2f'); bg.addColorStop(1, '#2b221b');
+  g.fillStyle = bg; g.beginPath(); g.moveTo(cx - 12, h); g.quadraticCurveTo(cx - 6, h * 0.7, cx - 4, h * 0.45); g.lineTo(cx + 5, h * 0.45); g.quadraticCurveTo(cx + 8, h * 0.7, cx + 13, h); g.closePath(); g.fill();
+  g.strokeStyle = '#3a2e24'; g.lineCap = 'round';
+  for(let i = 0; i < 6; i++){ const a = -Math.PI / 2 + (R() - 0.5) * 2.2, l = h * (0.18 + R() * 0.16); g.lineWidth = 3 + R() * 4; g.beginPath(); g.moveTo(cx, h * (0.5 + R() * 0.12)); g.quadraticCurveTo(cx + Math.cos(a) * l * 0.5, h * 0.42 + Math.sin(a) * l * 0.4, cx + Math.cos(a) * l, h * 0.42 + Math.sin(a) * l * 0.8); g.stroke(); }
+  // dark inner canopy for depth, then lit leaf clusters
+  const blobs = [];
+  for(let i = 0; i < 13; i++){ const a = R() * 6.283, d = Math.sqrt(R()); blobs.push([cx + Math.cos(a) * d * w * 0.3, h * 0.33 + Math.sin(a) * d * h * 0.2, w * (0.09 + R() * 0.06)]); }
+  blobs.sort((p, q) => p[1] - q[1]);
+  for(const [x, y, r] of blobs){ g.fillStyle = shade(cols[0], -0.62); g.beginPath(); g.ellipse(x, y, r * 0.9, r * 0.75, 0, 0, 6.283); g.fill(); }
+  for(const [x, y, r] of blobs) leaves(g, x, y, r, cols, R, Math.round(r * 2.2));
+}); }
+function makeRock(R){ return mk(180, 120, (g, w, h) => {
+  g.beginPath(); g.moveTo(4, h); g.lineTo(12, h * 0.5); g.lineTo(w * 0.3, h * 0.14); g.lineTo(w * 0.6, h * 0.1); g.lineTo(w * 0.86, h * 0.38); g.lineTo(w - 4, h); g.closePath();
+  const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#8d8f8e'); gr.addColorStop(1, '#4e5253'); g.fillStyle = gr; g.fill();
+  g.save(); g.clip();
+  for(let i = 0; i < 25; i++){ const x = R() * w, y = R() * h, s2 = 8 + R() * 22; g.fillStyle = shade('#6d7071', (R() - 0.5) * 0.3); g.beginPath(); g.moveTo(x, y); g.lineTo(x + s2, y + s2 * 0.3); g.lineTo(x + s2 * 0.5, y + s2); g.closePath(); g.fill(); }
+  for(let i = 0; i < 500; i++){ g.fillStyle = R() < 0.5 ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.12)'; g.fillRect(R() * w, R() * h, 1.5, 1.5); }
+  leaves(g, w * 0.35, h * 0.2, 14, ['#56713a', '#6b7f3c'], R, 30, 1.8, 0.5);
+  g.restore();
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, h - 4, w, 4);
+}); }
+function makeCliff(R){ return mk(360, 290, (g, w, h) => {
+  const top = []; for(let x = 0; x <= w; x += 12) top.push([x, h * (0.1 + R() * 0.15)]);
+  g.beginPath(); g.moveTo(0, h); for(const [x, y] of top) g.lineTo(x, y); g.lineTo(w, h); g.closePath();
+  const base = pick(R, ['#7d7a72', '#77797a', '#827b6f']);
+  const gr = g.createLinearGradient(0, 0, w * 0.3, h); gr.addColorStop(0, shade(base, 0.12)); gr.addColorStop(1, shade(base, -0.35));
+  g.fillStyle = gr; g.fill();
+  g.save(); g.clip();
+  // fractured faces of rock, each catching the light a little differently
+  for(let i = 0; i < 90; i++){
+    const x = R() * w, y = h * 0.1 + R() * h * 0.9, s2 = 14 + R() * 40;
+    g.fillStyle = shade(base, (R() - 0.55) * 0.3 - y / h * 0.15);
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + s2, y + s2 * (R() - 0.3)); g.lineTo(x + s2 * (0.4 + R() * 0.6), y + s2 * (0.6 + R() * 0.6)); g.lineTo(x - s2 * 0.3, y + s2 * 0.7); g.closePath(); g.fill();
   }
-  g.fillStyle = 'rgba(0,0,0,.16)'; g.beginPath(); g.ellipse(w / 2 + 10, h * 0.5, w * 0.36, h * 0.16, 0, 0, Math.PI); g.fill();
-}); }
-function makeRock(R){ return mk(170, 110, (g, w, h) => {
-  g.fillStyle = '#767b7f'; g.beginPath(); g.moveTo(4, h); g.lineTo(14, h * 0.45); g.lineTo(w * 0.35, h * 0.12); g.lineTo(w * 0.62, h * 0.2); g.lineTo(w * 0.86, h * 0.42); g.lineTo(w - 4, h); g.closePath(); g.fill();
-  g.fillStyle = '#5f6468'; g.beginPath(); g.moveTo(w * 0.62, h * 0.2); g.lineTo(w * 0.86, h * 0.42); g.lineTo(w - 4, h); g.lineTo(w * 0.55, h); g.closePath(); g.fill();
-  g.fillStyle = 'rgba(95,122,60,.7)'; g.beginPath(); g.ellipse(w * 0.32, h * 0.2, w * 0.12, h * 0.06, -0.3, 0, Math.PI * 2); g.fill();
-}); }
-function makeCliff(R){ return mk(320, 250, (g, w, h) => {
-  const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, '#7b7f7c'); grad.addColorStop(1, '#4f5352');
-  g.fillStyle = grad; g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.25);
-  for(let x = 0; x <= w; x += 20) g.lineTo(x, h * (0.06 + R() * 0.22));
-  g.lineTo(w, h); g.closePath(); g.fill();
-  g.strokeStyle = 'rgba(30,32,32,.35)'; g.lineWidth = 3;
-  for(let k = 0; k < 7; k++){ const y = h * (0.3 + k * 0.1); g.beginPath(); g.moveTo(0, y); for(let x = 0; x <= w; x += 32) g.lineTo(x, y + (R() - 0.5) * 12); g.stroke(); }
-  g.fillStyle = 'rgba(0,0,0,.18)'; for(let k = 0; k < 6; k++){ const x = R() * w; g.fillRect(x, h * 0.3, 6 + R() * 8, h * 0.6); }
-  for(let k = 0; k < 9; k++){ g.fillStyle = pick(R, ['#55703a','#6f7e3a','#c9822e','#9c4a24']); g.beginPath(); g.ellipse(R() * w, h * (0.08 + R() * 0.2), 14 + R() * 18, 8 + R() * 8, 0, 0, Math.PI * 2); g.fill(); }
+  // bedding planes and cracks
+  g.strokeStyle = 'rgba(20,20,18,.35)';
+  for(let k = 0; k < 6; k++){ let y = h * (0.25 + k * 0.12); g.lineWidth = 1 + R() * 1.5; g.beginPath(); g.moveTo(0, y); for(let x = 0; x <= w; x += 18){ y += (R() - 0.5) * 6; g.lineTo(x, y); } g.stroke(); }
+  for(let k = 0; k < 9; k++){ let x = R() * w, y = h * 0.15; g.lineWidth = 1 + R() * 2; g.beginPath(); g.moveTo(x, y); while(y < h){ x += (R() - 0.5) * 10; y += 10 + R() * 14; g.lineTo(x, y); } g.stroke(); }
+  // seep stains
+  for(let k = 0; k < 7; k++){ const x = R() * w, sg = g.createLinearGradient(0, h * 0.15, 0, h); sg.addColorStop(0, 'rgba(25,25,20,.25)'); sg.addColorStop(1, 'rgba(25,25,20,0)'); g.fillStyle = sg; g.fillRect(x, h * 0.15, 5 + R() * 12, h); }
+  // grain
+  for(let i = 0; i < 1800; i++){ g.fillStyle = R() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.1)'; g.fillRect(R() * w, R() * h, 1.5, 1.5); }
+  // moss and ferns on the ledges
+  for(let k = 0; k < 10; k++) leaves(g, R() * w, h * (0.3 + R() * 0.65), 6 + R() * 10, ['#4d6b33', '#5f7a3a', '#3d5a2c'], R, 22, 1.6, 0.4);
+  g.restore();
+  // shrubs and autumn trees along the top edge
+  for(const [x, y] of top) if(R() < 0.7) leaves(g, x + (R() - 0.5) * 8, y + 2, 9 + R() * 12, pick(R, AUTUMN), R, 26);
 }); }
 function diamond(g, cx, cy, r){
   g.save(); g.translate(cx, cy); g.rotate(Math.PI / 4);
@@ -794,9 +829,9 @@ const TPAINT = ['#7d8a93','#b7bcc0','#2b3a55','#6b1f24','#e8e6df','#2f4a35','#3a
 const traffic = [];
 function buildSprites(){
   const R = rng(7);
-  SP.pine = [0, 1, 2, 3].map(() => ({img: makePine(R), ww: 820, hit: 0.22}));
+  SP.pine = [0, 1, 2, 3, 4].map(() => ({img: makePine(R), ww: 760, hit: 0.22}));
   SP.oak = [];
-  for(let i = 0; i < 10; i++) SP.oak.push({img: makeOak(R, AUTUMN[i % AUTUMN.length]), ww: 1250, hit: 0.24});
+  for(let i = 0; i < 10; i++) SP.oak.push({img: makeOak(R, AUTUMN[i % AUTUMN.length]), ww: 1350, hit: 0.24});
   SP.rock = [0, 1].map(() => ({img: makeRock(R), ww: 640, hit: 0.36}));
   SP.cliff = [0, 1, 2].map(() => ({img: makeCliff(R), ww: 2400, hit: 0.6}));
   SP.photo = {img: makePhotographer(), ww: 330, hit: 0};
@@ -818,7 +853,7 @@ function buildSprites(){
     const type = ['sedan', 'sedan', 'suv', 'pickup'][i % 4], col = TPAINT[i];
     const rear = mk(200, 130, (g, w, h) => drawCar(g, w, h, TRAFFIC[type], col, 'rear', false));
     const front = mk(200, 130, (g, w, h) => drawCar(g, w, h, TRAFFIC[type], col, 'front', false));
-    traffic.push({type, rear, front, w: type === 'sedan' ? CAR_W : CAR_W * 1.08});
+    traffic.push({type, rear, front, w: type === 'sedan' ? CAR_W : CAR_W * 1.08, model: {id: 'tr' + i, s: TRAFFIC[type], L: type === 'sedan' ? 2.7 : 2.95, lb: type === 'sedan' ? 3300 : 4400, rhd: false}, paint: col});
   }
   for(let i = 0; i < 6; i++){
     const j = pick(TR, ['#1b1c1f','#7a1d1d','#d7d2c4','#2c4b77','#3d4a2a','#c86b1c']), hel = pick(TR, ['#e9e7df','#111','#c3161e','#f2c230','#2c5fbf']), bike = pick(TR, ['#c3161e','#1b1c1f','#2c5fbf','#f29a12','#9bd12a','#e9e7df']);
@@ -832,7 +867,8 @@ const NAMED = {3:'Copperhead Corner', 24:'Gravity Cavity', 61:'Shade Tree Corner
 function lastY(){ return segments.length ? segments[segments.length - 1].p2.world.y : 0; }
 function addSegment(curve, y){
   const n = segments.length;
-  segments.push({index: n, curve, rail: 0, sprites: [], cars: [], color: Math.floor(n / RUMBLE) % 2, clip: 0, fog: 1, vis: false,
+  const gn = 0.5 + 0.3 * Math.sin(n / 23) + 0.2 * Math.sin(n / 7.3 + 1);
+  segments.push({index: n, curve, rail: 0, sprites: [], cars: [], color: Math.floor(n / RUMBLE) % 2, rt: (Math.random() * 9) | 0, gt: clamp(Math.round(gn * 8), 0, 8), clip: 0, fog: 1, vis: false,
     p1: {world: {y: lastY(), z: n * SEG}, camera: {}, screen: {}}, p2: {world: {y, z: (n + 1) * SEG}, camera: {}, screen: {}}});
 }
 function addRoad(enter, hold, leave, curve, dy){
@@ -842,7 +878,7 @@ function addRoad(enter, hold, leave, curve, dy){
   for(let n = 0; n < leave; n++) addSegment(easeInOut(curve, 0, n / leave), easeInOut(y0, y1, (enter + hold + n + 1) / tot));
 }
 function segAt(z){ return segments[clamp(Math.floor(z / SEG), 0, segments.length - 1)]; }
-function addSprite(i, sp, offset){ const s = segments[i]; if(s) s.sprites.push({img: sp.img, ww: sp.ww, hit: sp.hit, offset}); }
+function addSprite(i, sp, offset, scale){ const s = segments[i]; if(s) s.sprites.push({img: sp.img, ww: sp.ww * (scale || 1), hit: sp.hit, offset}); }
 
 function buildTrack(){
   segments = []; curves = [];
@@ -883,7 +919,7 @@ function decorate(R, finishIndex){
       if(R() < 0.55){
         const off = side * (1.45 + R() * R() * 4.8);
         if(i > startIndex - 30 && i < startIndex + 6 && Math.abs(off) < 2.6) continue;
-        const r = R(); addSprite(i, r < 0.4 ? pick(R, SP.pine) : r < 0.95 ? pick(R, SP.oak) : pick(R, SP.rock), off);
+        const r = R(); addSprite(i, r < 0.4 ? pick(R, SP.pine) : r < 0.95 ? pick(R, SP.oak) : pick(R, SP.rock), off, r < 0.95 ? 0.7 + R() * 0.65 : 1);
       }
     }
     if(R() < 0.04) addSprite(i, pick(R, SP.rock), (R() < 0.5 ? -1 : 1) * (1.5 + R() * 0.4));
@@ -914,7 +950,7 @@ function decorate(R, finishIndex){
 
 /* ================= canvas + layers ================= */
 const cv = $('#view'), ctx = cv.getContext('2d', {alpha: false});
-let W = 0, H = 0, VH = 0, DPR = 1, layers = [], skyImg = null, nightMask = null;
+let W = 0, H = 0, VH = 0, DPR = 1, layers = [], skyImg = null, nightMask = null, vignette = null;
 function resize(){
   const cw = innerWidth, ch = innerHeight;
   DPR = Math.min(window.devicePixelRatio || 1, 1.75, Math.sqrt(2.6e6 / (cw * ch)));
@@ -934,6 +970,18 @@ function buildLayers(){
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
     if(pal.night){ for(let i = 0; i < 260; i++){ g.fillStyle = `rgba(255,255,255,${0.25 + R() * 0.7})`; const s = R() < 0.1 ? 2 : 1; g.fillRect(R() * w, R() * h * 0.45, s * DPR, s * DPR); }
       g.fillStyle = '#f1eedf'; g.beginPath(); g.arc(w * 0.3, h * 0.16, h * 0.035, 0, Math.PI * 2); g.fill(); g.fillStyle = pal.sky[1]; g.beginPath(); g.arc(w * 0.3 + h * 0.016, h * 0.152, h * 0.03, 0, Math.PI * 2); g.fill(); }
+    if(!pal.night){
+      // soft cloud banks
+      const cc = pal.sun ? '255,214,170' : '235,238,240';
+      for(let c = 0; c < 9; c++){
+        const bx = R() * w, by = h * (0.06 + R() * 0.26), bw = w * (0.05 + R() * 0.08);
+        for(let i = 0; i < 26; i++){
+          const x = bx + (R() - 0.5) * bw * 2, y = by + (R() - 0.5) * bw * 0.25, r = bw * (0.15 + R() * 0.3);
+          const gr2 = g.createRadialGradient(x, y, 0, x, y, r); gr2.addColorStop(0, `rgba(${cc},${0.1 + R() * 0.1})`); gr2.addColorStop(1, `rgba(${cc},0)`);
+          g.fillStyle = gr2; g.save(); g.translate(x, y); g.scale(1, 0.45); g.translate(-x, -y); g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill(); g.restore();
+        }
+      }
+    }
     if(pal.sun){ const sx = w * 0.62, sy = h * 0.4; const sg = g.createRadialGradient(sx, sy, 0, sx, sy, h * 0.35); sg.addColorStop(0, 'rgba(255,236,190,.95)'); sg.addColorStop(0.12, 'rgba(255,214,150,.6)'); sg.addColorStop(1, 'rgba(255,190,120,0)'); g.fillStyle = sg; g.fillRect(0, 0, w, h); g.fillStyle = '#fff1cf'; g.beginPath(); g.arc(sx, sy, h * 0.045, 0, Math.PI * 2); g.fill(); }
   });
   const bases = [0.13, 0.075, 0.03], amps = [0.11, 0.075, 0.035];
@@ -948,10 +996,24 @@ function buildLayers(){
       g.lineTo(x, y);
     }
     g.lineTo(w, h); g.closePath(); g.fill();
+    // canopy mottling and a ragged treeline on the ridge
+    g.save(); g.clip();
+    const n = Math.round(w * h / (li === 0 ? 900 : li === 1 ? 500 : 320)), rs = (li + 1) * 1.4 * DPR;
+    for(let i = 0; i < n; i++){ g.fillStyle = shade(col, (R() - 0.5) * (li === 2 ? 0.35 : 0.2)); g.beginPath(); g.arc(R() * w, base - amp + R() * (h * 0.5 - base + amp + h * 0.1), rs * (0.6 + R()), 0, 6.283); g.fill(); }
+    g.restore();
+    if(li > 0){ g.fillStyle = col; for(let x = 0; x <= w; x += 3 * DPR){ const t = x / w * Math.PI * 2; const y = base - amp * (0.55 * Math.sin(t * k[0] + ph[0]) + 0.3 * Math.sin(t * k[1] + ph[1]) + 0.15 * Math.sin(t * k[2] + ph[2])); g.beginPath(); g.arc(x, y, rs * (0.7 + R() * 0.8), 0, 6.283); g.fill(); } }
     const hz = g.createLinearGradient(0, base - amp, 0, h * 0.5);
     hz.addColorStop(0, 'rgba(0,0,0,0)'); hz.addColorStop(1, pal.haze);
     g.globalCompositeOperation = 'source-atop'; g.globalAlpha = li === 0 ? 0.55 : li === 1 ? 0.35 : 0.15; g.fillStyle = hz; g.fillRect(0, 0, w, h);
   }));
+  vignette = mk(W, VH, (g, w, h) => {
+    const vg = g.createRadialGradient(w / 2, h * 0.55, Math.min(w, h) * 0.35, w / 2, h * 0.55, Math.hypot(w, h) * 0.62);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    if(pal.sun){ const wg = g.createLinearGradient(0, 0, 0, h); wg.addColorStop(0, 'rgba(255,170,90,.10)'); wg.addColorStop(0.6, 'rgba(255,170,90,0)'); g.fillStyle = wg; g.fillRect(0, 0, w, h); }
+  });
+  const tones = (hex, n, k) => Array.from({length: n}, (_, i) => shade(hex, (i - (n - 1) / 2) * k));
+  pal.roadT = tones(pal.road[0], 9, 0.022); pal.grassT = tones(pal.grass[0], 9, 0.06); pal.shoulderT = tones(pal.shoulder[0], 9, 0.04);
   nightMask = pal.night ? mk(Math.round(W * 1.3), VH, (g, w, h) => {
     g.fillStyle = 'rgba(2,5,12,.84)'; g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = 'destination-out';
@@ -970,7 +1032,7 @@ function drawLayer(img, off, y){
 }
 
 /* ================= game state ================= */
-const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'gold', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', paints: {}}, store.get('settings', {}));
+const settings = Object.assign({car: 'ae86', region: 'jdm', route: 'sprint', tod: 'gold', traffic: 'on', autogas: 'off', sound: 'on', cam: 'chase', steer: 'buttons', assist: 'on', gearbox: 'auto', road: 'dry', antilag: 'off', paints: {}}, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 let bests = store.get('bests', {});
 let player = null;
@@ -1003,7 +1065,7 @@ function makeCars(n, z0, z1){
     const pool = traffic.filter(t => moto ? t.type === 'moto' : t.type !== 'moto');
     const v = pool[(R() * pool.length) | 0];
     const same = R() < 0.45;
-    const c = {z: z0 + 5000 + R() * (z1 - z0), dir: same ? 1 : -1, offset: (same ? 0.5 : -0.5) + (moto ? (R() - 0.5) * 0.3 : 0), mph: moto ? 30 + R() * 18 : 24 + R() * 16, img: same ? v.rear : v.front, w: v.w, moto, z0: z0 - 2000, z1: z1 + 3000};
+    const c = {z: z0 + 5000 + R() * (z1 - z0), dir: same ? 1 : -1, offset: (same ? 0.5 : -0.5) + (moto ? (R() - 0.5) * 0.3 : 0), mph: moto ? 30 + R() * 18 : 24 + R() * 16, img: same ? v.rear : v.front, w: v.w, moto, model: v.model, paint: v.paint, z0: z0 - 2000, z1: z1 + 3000};
     cars.push(c); segAt(c.z).cars.push(c);
   }
 }
@@ -1012,7 +1074,7 @@ function resetRun(attract){
   routeEnd = settings.route === 'full' ? fullEndZ : sprintEndZ;
   routeCurves = settings.route === 'full' ? TOTAL_CURVES : sprintCurves;
   position = startZ - PLAYER_Z - SEG * 3; playerX = 0.5; mph = 0; steer = 0; psi = 0; kCar = 0; vyB = 0; yawR = 0; lonA = 0; thrP = 0; brakeP = 0; latG = 0; lonG = 0;
-  drv.v = 0; drv.gear = 1; drv.shiftT = 0; drv.rpm = 850; drv.boost = 0; drv.manual = !attract && settings.gearbox === 'manual'; raceT = 0; crashT = 0; shake = 0; flashT = 0; finT = 0;
+  drv.v = 0; drv.gear = 1; drv.shiftT = 0; drv.rpm = 850; drv.boost = 0; drv.manual = !attract && settings.gearbox === 'manual'; drv.als = !attract && settings.antilag === 'on'; raceT = 0; crashT = 0; shake = 0; flashT = 0; finT = 0;
   nextCurve = 0; particles = []; scraping = false;
   stats = {top: 0, wrecks: 0, rails: 0, photos: 0, bumps: 0, maxG: 0};
   for(const c of curves) c.snapped = false;
@@ -1061,7 +1123,10 @@ class EngineGen {
     const dur = Math.max(10, Math.round(c.pulseDeg / degPerS * this.sr));
     this.pulses.push({bank, k: 0, dur, amp: Math.max(0, amp), sharp: c.sharp});
     // overrun: unburnt fuel lights off in the hot exhaust; frequent right after lifting, then dies away
-    if(over && c.pops){
+    if(c.als && this.thr < 0.3 && this.rpm > c.redline * 0.3){
+      // anti-lag: fuel and air are fired into the hot exhaust to keep the turbo spinning
+      if(this.rnd() < 0.32 * Math.min(1.2, 7 / c.fire.length)) this.pop(1.0 + this.rnd() * 1.6, bank);
+    } else if(over && c.pops){
       const p = c.popRate * Math.exp(-this.overT / 1.3) * Math.min(1, (this.rpm - c.redline * 0.42) / (c.redline * 0.25));
       if(this.rnd() < p * 0.2 * Math.min(1.2, 7 / c.fire.length)) this.pop(0.45 + this.rnd() * 0.9 + (this.rnd() < 0.08 ? 1.6 : 0), bank);
     }
@@ -1132,7 +1197,7 @@ const VOICE = {
   v8:     {popRate: 0.22, intake: 0.12, intakeHz: 650, fire: V8_CROSS, pipes: [2.6, 2.85], refl: -0.62, pipeDamp: 0.55, chamber: 0.25, bankMix: 0.9, muffler: 1300, pulseDeg: 120, sharp: 2, jitter: 0.06, noise: 0.25, drive: 1.6},
   bigv8:  {popRate: 0.25, intake: 0.1, intakeHz: 520, fire: V8_CROSS, pipes: [3.0, 3.3], refl: -0.66, pipeDamp: 0.45, chamber: 0.3, bankMix: 0.95, muffler: 950, pulseDeg: 140, sharp: 2, jitter: 0.16, noise: 0.3, drive: 1.9},
   v10:    {popRate: 0.2, intake: 0.12, intakeHz: 700, fire: V10_ODD, pipes: [1.3, 1.3], refl: -0.5, pipeDamp: 0.6, chamber: 0.15, bankMix: 1, muffler: 1700, pulseDeg: 100, sharp: 2, jitter: 0.06, noise: 0.3, drive: 1.7},
-  v12:    {popRate: 0.16, intake: 0.3, intakeHz: 1300, fire: evenFire(12, [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), pipes: [1.7, 1.75], refl: -0.45, pipeDamp: 0.7, chamber: 0.1, bankMix: 1, muffler: 3200, pulseDeg: 70, sharp: 3, jitter: 0.02, noise: 0.12, drive: 1.3},
+  v12:    {popRate: 0.16, intake: 0.22, intakeHz: 820, fire: evenFire(12, [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), pipes: [2.1, 2.9], refl: -0.62, pipeDamp: 0.45, chamber: 0.3, bankMix: 0.7, muffler: 1500, pulseDeg: 125, sharp: 1.6, jitter: 0.04, noise: 0.2, drive: 2.1},
   flat6:  {popRate: 0.12, intake: 0.32, intakeHz: 1150, fire: evenFire(6, [0, 1, 0, 1, 0, 1]), pipes: [1.45, 1.5], refl: -0.5, pipeDamp: 0.65, chamber: 0.12, bankMix: 1, muffler: 2900, pulseDeg: 85, sharp: 3, jitter: 0.03, noise: 0.15, drive: 1.3},
   i6:     {popRate: 0.15, intake: 0.2, intakeHz: 950, fire: evenFire(6), pipes: [2.3], refl: -0.55, pipeDamp: 0.6, chamber: 0.18, bankMix: 1, muffler: 2000, pulseDeg: 95, sharp: 2.5, jitter: 0.03, noise: 0.15, drive: 1.3},
   i4:     {popRate: 0.15, intake: 0.2, intakeHz: 1000, fire: evenFire(4), pipes: [2.0], refl: -0.58, pipeDamp: 0.6, chamber: 0.2, bankMix: 1, muffler: 1800, pulseDeg: 115, sharp: 2, jitter: 0.05, noise: 0.25, drive: 1.5},
@@ -1202,9 +1267,10 @@ const Snd = {
   setOn(on){ if(this.master) this.master.gain.setTargetAtTime(on ? 0.7 : 0, this.a.currentTime, 0.05); },
   voice(car){
     this.car = car;
-    if(!this.a || !this.post || this.voiceFor === car.id) return;
-    this.voiceFor = car.id;
-    this.post({cfg: Object.assign({}, VOICE[car.snd.v], car.snd.tweak || {}, {redline: car.redline, pops: !!car.snd.pops})});
+    const als = !!(car.snd.turbo && drv.als);
+    if(!this.a || !this.post || this.voiceFor === car.id + als) return;
+    this.voiceFor = car.id + als;
+    this.post({cfg: Object.assign({}, VOICE[car.snd.v], car.snd.tweak || {}, {redline: car.redline, pops: !!car.snd.pops, als})});
   },
   engine(rpm, thr, on, lim, boost){
     if(!this.a) return;
@@ -1220,7 +1286,7 @@ const Snd = {
       this.tw2g.gain.setTargetAtTime(on ? ts * ts * 0.01 * (0.35 + 0.65 * thr) : 0, t, 0.04);
       this.whbp.frequency.setTargetAtTime(700 + ts * 2600, t, 0.05);
       this.whg.gain.setTargetAtTime(on ? ts * thr * 0.09 : 0, t, 0.05);
-      if(on && this.lastThr > 0.6 && thr < 0.25 && boost > 0.4) this.blowOff(car.snd.bov, boost);
+      if(on && !drv.als && this.lastThr > 0.6 && thr < 0.25 && boost > 0.4) this.blowOff(car.snd.bov, boost);
     } else if(car.snd.sc){
       this.tw.frequency.setTargetAtTime(rpm * 0.55, t, 0.02);
       this.twg.gain.setTargetAtTime(on ? 0.006 + 0.022 * thr * r : 0, t, 0.05);
@@ -1419,7 +1485,15 @@ function update(dt){
   }
   position += mph * UPS * dt;
   if(state === 'race') stats.top = Math.max(stats.top, mph);
-  if(drv.shifted){ drv.shifted = false; if(!attract && thrP > 0.7){ if(car.snd.pops && drv.rpm > car.redline * 0.5) Snd.bang(); if(car.snd.turbo && Snd.a && (drv.boost || 0) > 0.5) Snd.blowOff(car.snd.bov, drv.boost * 0.6); } }
+  // flames: anti-lag keeps firing off throttle; ordinary pops fade out after you lift
+  if(thrP < 0.1 && drv.rpm > car.redline * 0.42) liftT += dt; else if(thrP > 0.3) liftT = 0;
+  flameT = Math.max(0, flameT - dt);
+  if(!attract && crashT <= 0){
+    const als = car.snd.turbo && drv.als && thrP < 0.3 && drv.rpm > car.redline * 0.3;
+    const chance = als ? 0.3 : car.snd.pops && liftT > 0 ? 0.05 * Math.exp(-liftT / 1.3) : 0;
+    if(Math.random() < chance){ flameT = 0.05 + Math.random() * 0.07; flameBig = als && Math.random() < 0.3; }
+  }
+  if(drv.shifted){ drv.shifted = false; if(!attract && thrP > 0.7){ if(car.snd.pops && drv.rpm > car.redline * 0.5){ Snd.bang(); flameT = 0.09; flameBig = true; } if(car.snd.turbo && !drv.als && Snd.a && (drv.boost || 0) > 0.5) Snd.blowOff(car.snd.bov, drv.boost * 0.6); } }
 
   // background parallax
   const ps2 = segAt(position + PLAYER_Z);
@@ -1511,11 +1585,16 @@ function poly(x1, y1, x2, y2, x3, y3, x4, y4, c){ ctx.fillStyle = c; ctx.beginPa
 function stripe(x1, y1, w1, x2, y2, w2, pos, hw, c){ poly(x1 + (pos - hw) * w1, y1, x1 + (pos + hw) * w1, y1, x2 + (pos + hw) * w2, y2, x2 + (pos - hw) * w2, y2, c); }
 function drawSegment(s){
   const a = s.p1.screen, b = s.p2.screen, c = s.color;
-  ctx.fillStyle = pal.grass[c]; ctx.fillRect(-W * 0.1, b.y, W * 1.2, a.y - b.y);
+  ctx.fillStyle = pal.grassT[s.gt]; ctx.fillRect(-W * 0.1, b.y, W * 1.2, a.y - b.y);
   const r1 = a.w * 0.1, r2 = b.w * 0.1;
-  poly(a.x - a.w - r1, a.y, a.x - a.w, a.y, b.x - b.w, b.y, b.x - b.w - r2, b.y, pal.shoulder[c]);
-  poly(a.x + a.w + r1, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x + b.w + r2, b.y, pal.shoulder[c]);
-  poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, pal.road[c]);
+  poly(a.x - a.w - r1, a.y, a.x - a.w, a.y, b.x - b.w, b.y, b.x - b.w - r2, b.y, pal.shoulderT[s.rt]);
+  poly(a.x + a.w + r1, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x + b.w + r2, b.y, pal.shoulderT[8 - s.rt]);
+  poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, pal.roadT[s.rt]);
+  if(b.w > 8){
+    for(const pos of [-0.75, -0.25, 0.25, 0.75]) stripe(a.x, a.y, a.w, b.x, b.y, b.w, pos, 0.07, 'rgba(0,0,0,.05)');
+    stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.5, 0.03, 'rgba(0,0,0,.06)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.5, 0.03, 'rgba(0,0,0,.06)');
+    stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.9, 0.05, 'rgba(40,32,24,.1)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.9, 0.05, 'rgba(40,32,24,.1)');
+  }
   if(settings.road === 'wet' && state !== 'attract'){ poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, 'rgba(8,14,24,.22)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.5, 0.18, 'rgba(190,205,225,.06)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.5, 0.18, 'rgba(190,205,225,.06)'); }
   if(s.patch) stripe(a.x, a.y, a.w, b.x, b.y, b.w, s.patch[0], s.patch[1], 'rgba(0,0,0,.09)');
   if(s.marks && b.w > 3){ const o = s.marks; stripe(a.x, a.y, a.w, b.x, b.y, b.w, o - 0.13, 0.012, 'rgba(15,15,15,.28)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, o + 0.13, 0.012, 'rgba(15,15,15,.28)'); }
@@ -1569,7 +1648,7 @@ function render(){
     s.fog = expFog(n / DRAW, pal.fogD * (wet ? 1.6 : 1)); s.clip = maxy;
     project(s.p1, camX - x, camY, rp);
     project(s.p2, camX - x - dx, camY, rp);
-    x += dx; dx += s.curve;
+    s.dxv = dx; x += dx; dx += s.curve;
     s.vis = false;
     if(s.p1.camera.z <= CAM_DEPTH || s.p2.screen.y >= s.p1.screen.y || s.p2.screen.y >= maxy) continue;
     s.vis = true; drawSegment(s); maxy = s.p1.screen.y;
@@ -1587,7 +1666,15 @@ function render(){
       const sc = lerp(s.p1.screen.scale, s.p2.screen.scale, pct);
       const sx = lerp(s.p1.screen.x, s.p2.screen.x, pct) + sc * c.offset * ROAD * W / 2;
       const sy = lerp(s.p1.screen.y, s.p2.screen.y, pct);
-      const r = drawSprite(c.img, c.w, sc, sx, sy, s.clip);
+      const wpx = c.w * sc * W / 2;
+      let r;
+      if(c.model && wpx > 22 * DPR && sy < s.clip + wpx){
+        ctx.save(); ctx.beginPath(); ctx.rect(-W, -VH, W * 3, s.clip + VH); ctx.clip();
+        const distM = Math.max(6, (c.z - rp) * 1609.34 / UPM);
+        render3D(ctx, c.model, {cx: sx, gy: sy, width: wpx * 0.9, yaw: Math.atan(s.dxv / SEG) + (c.dir < 0 ? Math.PI : 0), delta: 0, roll: 0, pitch: 0, brake: false, paint: c.paint, camH: 2.3, camD: distM});
+        ctx.restore();
+        r = {dw: wpx, dh: wpx * 0.62};
+      } else r = drawSprite(c.img, c.w, sc, sx, sy, s.clip);
       if(r && night && sy < s.clip){
         if(c.dir < 0){ if(c.moto) lights.push([sx, sy - r.dh * 0.44, r.dw * 1.4, 1]); else { lights.push([sx - r.dw * 0.36, sy - r.dh * 0.4, r.dw * 0.6, 1]); lights.push([sx + r.dw * 0.36, sy - r.dh * 0.4, r.dw * 0.6, 1]); } }
         else { if(c.moto) lights.push([sx, sy - r.dh * 0.36, r.dw * 0.5, 0]); else { lights.push([sx - r.dw * 0.38, sy - r.dh * 0.42, r.dw * 0.3, 0]); lights.push([sx + r.dw * 0.38, sy - r.dh * 0.42, r.dw * 0.3, 0]); } }
@@ -1616,6 +1703,7 @@ function render(){
     else { ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.r * 2, p.r * 2); }
   }
   if(wet) drawRain();
+  if(vignette) ctx.drawImage(vignette, -yawX, 0);
   if(cockpit) drawCockpit();
   if(flashT > 0){ ctx.fillStyle = `rgba(255,255,255,${flashT / 0.18 * 0.7})`; ctx.fillRect(0, 0, W, VH); }
   ctx.restore();
@@ -1709,7 +1797,7 @@ function render3D(g, car, o){
     const boxT = [[-wd, R * 1.4, -R * 0.8], [wd, R * 1.4, -R * 0.8], [wd, R * 1.4, R * 0.8], [-wd, R * 1.4, R * 0.8]].map(p => P(pt(...p)));
     poly([box[0], box[1], boxT[1], boxT[0]], '#0d0d0f'); poly([box[1], box[2], boxT[2], boxT[1]], '#0d0d0f'); poly([box[3], box[0], boxT[0], boxT[3]], '#0d0d0f');
   }
-  const lights = [];
+  const lights = [], exh = [];
   const rearUV = (F, u, v) => { // F = [BL, BR, TR, TL] world points of a quad
     const b = [lerp(F[0][0], F[1][0], u), lerp(F[0][1], F[1][1], u), lerp(F[0][2], F[1][2], u)];
     const t = [lerp(F[3][0], F[2][0], u), lerp(F[3][1], F[2][1], u), lerp(F[3][2], F[2][2], u)];
@@ -1726,7 +1814,18 @@ function render3D(g, car, o){
       const fi = faceInfo(pts3, center);
       if(!fi.vis) continue;
       let kind = part.col[name];
-      poly(pts3.map(P), colorFor(kind, fi.lam));
+      const sp = pts3.map(P);
+      let ymin = Infinity, ymax = -Infinity; for(const q of sp){ ymin = Math.min(ymin, q[1]); ymax = Math.max(ymax, q[1]); }
+      if(ymax - ymin > 2){
+        // clear-coat: sky reflected near the top of each panel, darker toward the ground
+        const base = kind.startsWith('paint') ? paint : kind === 'glassF' ? '#5d7387' : '#2a3846', k = kind.startsWith('paint') ? -0.5 + fi.lam * 0.62 : -0.55 + fi.lam * 0.4;
+        const gr = g.createLinearGradient(0, ymin, 0, ymax);
+        gr.addColorStop(0, shade(base, Math.min(0.6, k + (kind.startsWith('paint') ? 0.22 : 0.3))));
+        gr.addColorStop(0.45, shade(base, k));
+        gr.addColorStop(1, shade(base, Math.max(-0.95, k - 0.22)));
+        g.fillStyle = gr; g.beginPath(); g.moveTo(sp[0][0], sp[0][1]); for(let i = 1; i < sp.length; i++) g.lineTo(sp[i][0], sp[i][1]); g.closePath(); g.fill();
+        if(kind.startsWith('paint') && name !== 'top'){ g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; g.stroke(); }
+      } else poly(sp, colorFor(kind, fi.lam));
       if(part.lower && s.twoTone && name !== 'top'){
         const F = [pts3[0], pts3[1], pts3[2], pts3[3]];
         rect(F, 0, 1, 0, 0.5, shade(s.twoTone, -0.3 + fi.lam * 0.4));
@@ -1752,7 +1851,7 @@ function render3D(g, car, o){
         // bumper, plate, exhausts
         rect(F, 0.04, 0.96, 0, 0.2, s.chrome ? '#c9ced2' : 'rgba(0,0,0,.45)');
         rect(F, 0.4, 0.6, 0.24, 0.44, '#ece7d8'); rect(F, 0.43, 0.57, 0.31, 0.36, '#2d3a63');
-        const ex = (u) => { circ(F, u, 0.09, 0.03, 0.08, '#9aa0a4', 10); circ(F, u, 0.09, 0.019, 0.05, '#111', 10); };
+        const ex = (u) => { circ(F, u, 0.09, 0.03, 0.08, '#9aa0a4', 10); circ(F, u, 0.09, 0.019, 0.05, '#111', 10); exh.push(rearUV(F, u, 0.09)); };
         if(s.exhaust === 'quad'){ ex(0.12); ex(0.2); ex(0.8); ex(0.88); } else if(s.exhaust === 'dual'){ ex(0.15); ex(0.85); } else if(s.exhaust === 'center'){ ex(0.46); ex(0.54); } else ex(0.82);
         const lc = o.brake ? '#ff3b2a' : '#a3121a', L2 = s.lights;
         const lit = (u, v) => lights.push(rearUV(F, u, v));
@@ -1800,9 +1899,9 @@ function render3D(g, car, o){
   }
   if(s.wing === 'lip') poly([[-hw * 0.88, top, -hl + 0.08], [hw * 0.88, top, -hl + 0.08], [hw * 0.88, top + 0.05, -hl + 0.04], [-hw * 0.88, top + 0.05, -hl + 0.04]].map(p => P(tw(p, true))), shade(paint, -0.4));
   if(s.wing === 'ducktail') poly([[-hw * 0.9, top, -hl + 0.3], [hw * 0.9, top, -hl + 0.3], [hw * 0.9, top + 0.08, -hl + 0.06], [-hw * 0.9, top + 0.08, -hl + 0.06]].map(p => P(tw(p, true))), shade(paint, -0.1));
-  return lights;
+  return {lights, exh};
 }
-let playerLights = [];
+let playerLights = [], flameT = 0, flameBig = false, liftT = 0;
 function drawPlayer(){
   const dw = playerW();
   const bounce = mph > 1 ? Math.sin(performance.now() / 45) * DPR * (offroad ? 3 : 0.8) * Math.min(1, mph / 60) : 0;
@@ -1810,7 +1909,18 @@ function drawPlayer(){
   const beta = Math.atan2(vyB, Math.max(drv.v, 3));
   const yaw = clamp(psi + beta * 0.9 + yawR * 0.2, -0.75, 0.75) + (crashT > 0 ? Math.sin(crashT * 9) * 0.12 : 0);
   const roll = clamp(-latG, -1.2, 1.2) * 0.012;
-  playerLights = render3D(ctx, player.car, {cx: W / 2 - yawX, gy: VH * 0.985 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint});
+  const res = render3D(ctx, player.car, {cx: W / 2 - yawX, gy: VH * 0.985 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint});
+  playerLights = res.lights;
+  if(flameT > 0){
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for(const [x, y] of res.exh){
+      const r = dw * (0.035 + Math.random() * 0.04) * (flameBig ? 1.8 : 1);
+      const fg = ctx.createRadialGradient(x, y, 0, x, y, r);
+      fg.addColorStop(0, 'rgba(220,235,255,.95)'); fg.addColorStop(0.2, 'rgba(120,170,255,.8)'); fg.addColorStop(0.45, 'rgba(255,150,40,.75)'); fg.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.ellipse(x, y + r * 0.25, r, r * 1.2, 0, 0, 6.283); ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 let rain = [];
@@ -1943,7 +2053,7 @@ function startRace(){
   state = 'countdown'; cdT = 3.99;
   show(null); $('#hud').hidden = false;
   for(const k in last) delete last[k];
-  document.body.classList.toggle('manualbox', settings.gearbox === 'manual'); drv.manual = settings.gearbox === 'manual';
+  document.body.classList.toggle('manualbox', settings.gearbox === 'manual'); drv.manual = settings.gearbox === 'manual'; drv.als = settings.antilag === 'on';
   document.body.classList.toggle('wheelmode', settings.steer === 'wheel'); document.body.classList.toggle('tiltmode', settings.steer === 'tilt'); setWheel(0);
   hud.curveTot.textContent = routeCurves; hud.mileTot.textContent = settings.route === 'full' ? FULL_MI : SPRINT_MI;
   const b = bests[bestKey()]; hud.best.textContent = b ? 'Best ' + fmtTime(b) : '';
