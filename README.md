@@ -6,10 +6,11 @@ Open `index.html` in any phone or desktop browser. No build step. The 3D graphic
 
 ## Features
 - Real-time 3D (WebGL): the road is laid out from the same curvature the physics uses, with forest, rock walls, guardrails, distant ridges, sun and shadows, clear-coat car paint with sky reflections, headlights at night, wet-road reflections, fog and bloom. Graphics setting: 3D High, 3D Fast or Classic, with automatic step-down on slow devices
-- 16 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
+- 17 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
-  - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
+  - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), BMW 3.0 CSL "Batmobile", Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
+- Liveries for every car (twin stripes, rally stripe, BMW M stripes, race numbers), see-through glass with a modeled interior and driver, home-market licence plates, and an analog rev counter.
 - Realistic driving model: power, aero drag and gearing fitted to each car's real 0-60 and top speed; tire grip shared between braking and cornering (friction circle); no-ABS cars lose steering under hard braking; real road grades
 - Engine sound from a physical exhaust model: every cylinder fires in the car's real firing order into a modeled exhaust pipe and muffler, plus turbo whistle and blow-off, supercharger whine and overrun crackle
 - Turbo lag and optional anti-lag (bangs and flames off throttle), automatic or manual gears with shift buttons (Q/E on a keyboard), wet roads with rain
