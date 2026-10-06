@@ -1803,6 +1803,42 @@ function hull(hb, yb, zb0, zb1, ht, yt, zt0, zt1, hbr){
     rear: [B[0], B[1], T[1], T[0]], front: [B[2], B[3], T[3], T[2]],
     left: [B[3], B[0], T[0], T[3]], right: [B[1], B[2], T[2], T[1]], top: [T[0], T[1], T[2], T[3]]}};
 }
+// Smooth body: cross-sections lofted along the car, with a sloped hood, curved roof, flared fenders
+// around the wheels and rounded ends. Each section has the same point count so neighbours join into quads.
+function loft(car, d){
+  const s = car.s, hw = d.wid / 2, hl = d.len / 2, mid = MID_ENGINE[car.id];
+  const zws = hl - d.len * (mid ? 0.33 : s.hatch ? 0.32 : 0.4);
+  const zrw = s.hatch ? -hl + 0.1 : -hl + d.len * (mid ? 0.3 : s.cabinRound ? 0.18 : 0.24);
+  const zrf = zws - d.len * (s.hatch ? 0.13 : 0.17), zrr = zrw + d.len * (s.hatch ? 0.04 : s.cabinRound ? 0.2 : 0.12);
+  const rw = hw * (0.5 + s.roofW * 0.42), gw = hw * 0.9, yb = 0.27, belt = d.belt, roof = d.hgt;
+  const wz = [car.L / 2, -car.L / 2];
+  const sm = t => t * t * (3 - 2 * t);
+  const flare = z => wz.reduce((a, c, i) => a + (i === 1 && s.hips ? 0.05 : 0.025) * Math.exp(-Math.pow((z - c) / 0.5, 2)), 0);
+  const cabinY = z => {
+    if(s.roadster || z >= zws || z <= zrw) return null;
+    if(z >= zrf) return lerp(roof, belt, sm((z - zrf) / (zws - zrf)));
+    if(z <= zrr) return lerp(belt, roof, sm((z - zrw) / (zrr - zrw)));
+    return roof + 0.015 * Math.sin(Math.PI * (z - zrr) / (zrf - zrr));
+  };
+  const NS = 18, rings = [], meta = [];
+  for(let i = 0; i < NS; i++){
+    const t = i / (NS - 1), z = -hl + d.len * (0.5 - 0.5 * Math.cos(Math.PI * t));
+    const endK = Math.min(z + hl, hl - z), round = clamp(endK / 0.3, 0, 1);
+    const w = hw * (0.9 + 0.1 * Math.sqrt(round)) + flare(z) * round;
+    const top = s.roadster ? belt : z > zws ? lerp(belt * 0.8, belt, sm(clamp((hl - z) / (hl - zws), 0, 1))) : z < zrw ? belt * 0.97 : belt;
+    const yT = top - (1 - round) * 0.05, yB = yb + (1 - round) * 0.05;
+    const cy = cabinY(z), cab = cy != null && cy > top + 0.04;
+    const right = [
+      [w * 0.9, yB], [w, yB + 0.1], [w, belt - 0.13], [w * 0.985, belt - 0.04], [w * 0.93, yT],
+      ...(cab ? (() => { const f = (cy - top) / Math.max(0.01, roof - top), uw = lerp(gw, rw, f); return [[gw, yT + 0.015], [lerp(gw, uw, 0.75), lerp(yT, cy, 0.8)], [uw * 0.8, cy], [0, cy + 0.012]]; })()
+             : [[w * 0.78, yT + 0.008], [w * 0.55, yT + 0.014], [w * 0.28, yT + 0.018], [0, yT + 0.02]])
+    ];
+    const ring = [[0, yB - 0.02, z], ...right.map(p => [p[0], p[1], z])];
+    for(let k = right.length - 2; k >= 0; k--) ring.push([-right[k][0], right[k][1], z]);
+    rings.push(ring); meta.push({z, cab, w, top: yT, yB});
+  }
+  return {rings, meta, zws, zrw, zrf, zrr, belt, roof, gw};
+}
 function buildMesh(car){
   const s = car.s, d = carDims(car), hw = d.wid / 2, hl = d.len / 2, mid = MID_ENGINE[car.id];
   const parts = [];
@@ -1819,7 +1855,7 @@ function buildMesh(car){
     const g = hull(gb, d.belt - 0.01, zrw, zws, gt, d.hgt, zrr, Math.max(zrr + 0.3, zrf));
     parts.push({h: g, col: {rear: 'glass', front: 'glassF', left: 'glassS', right: 'glassS', top: 'paintRoof'}, layer: 2, green: true});
   }
-  return {d, parts, mid};
+  return {d, parts, mid, body: loft(car, d)};
 }
 const meshCache = {};
 function mesh(car){ return meshCache[car.id] || (meshCache[car.id] = buildMesh(car)); }
@@ -1928,82 +1964,106 @@ function render3D(g, car, o){
   const decal = (F, uv, col) => poly(uv.map(([u, v]) => rearUV(F, u, v)), col);
   const rect = (F, u0, u1, v0, v1, col) => decal(F, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], col);
   const circ = (F, u, v, ru, rv, col, n) => { const pts = []; for(let i = 0; i < (n || 12); i++){ const a = i / (n || 12) * Math.PI * 2; pts.push([u + Math.cos(a) * ru, v + Math.sin(a) * rv]); } decal(F, pts, col); };
-  for(const part of M.parts){
-    const H = part.h, center = tw(H.center, true);
-    const order = ['front', 'left', 'right', 'top', 'rear'];
-    for(const name of order){
-      const pts3 = H.faces[name].map(p => tw(p, true));
-      const fi = faceInfo(pts3, center);
-      if(!fi.vis) continue;
-      let kind = part.col[name];
-      const sp = pts3.map(P);
-      let ymin = Infinity, ymax = -Infinity; for(const q of sp){ ymin = Math.min(ymin, q[1]); ymax = Math.max(ymax, q[1]); }
-      if(ymax - ymin > 2){
-        // clear-coat: sky reflected near the top of each panel, darker toward the ground
-        const base = kind.startsWith('paint') ? paint : kind === 'glassF' ? '#5d7387' : '#2a3846', k = kind.startsWith('paint') ? -0.5 + fi.lam * 0.62 : -0.55 + fi.lam * 0.4;
-        const gr = g.createLinearGradient(0, ymin, 0, ymax);
-        gr.addColorStop(0, shade(base, Math.min(0.6, k + (kind.startsWith('paint') ? 0.22 : 0.3))));
-        gr.addColorStop(0.45, shade(base, k));
-        gr.addColorStop(1, shade(base, Math.max(-0.95, k - 0.22)));
-        g.fillStyle = gr; g.beginPath(); g.moveTo(sp[0][0], sp[0][1]); for(let i = 1; i < sp.length; i++) g.lineTo(sp[i][0], sp[i][1]); g.closePath(); g.fill();
-        if(kind.startsWith('paint') && name !== 'top'){ g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; g.stroke(); }
-      } else poly(sp, colorFor(kind, fi.lam));
-      if(part.lower && s.twoTone && name !== 'top'){
-        const F = [pts3[0], pts3[1], pts3[2], pts3[3]];
-        rect(F, 0, 1, 0, 0.5, shade(s.twoTone, -0.3 + fi.lam * 0.4));
-      }
-      if(s.stripes && (name === 'top' || (name === 'rear' && part.lower))){
-        const F = [pts3[0], pts3[1], pts3[2], pts3[3]];
-        rect(F, 0.4, 0.47, 0, 1, s.stripes); rect(F, 0.53, 0.6, 0, 1, s.stripes);
-      }
-      if(part.lower && (name === 'left' || name === 'right')){
-        // wheel arches and wheels on the visible side
-        const side = name === 'left' ? -1 : 1;
-        for(const [x, z, dl] of wheels){
-          if(Math.sign(x) !== side) continue;
-          const R = d.r, c = Math.cos(dl), sn = Math.sin(dl);
-          const disc = (rad, col) => { const pts = []; for(let i = 0; i < 16; i++){ const a = i / 16 * Math.PI * 2, lz = Math.cos(a) * rad, ly = R + Math.sin(a) * rad; pts.push(P(tw([x + side * 0.13 + lz * sn, ly, z + lz * c]))); } poly(pts, col); };
-          const arch = []; for(let i = 0; i <= 10; i++){ const a = i / 10 * Math.PI, lz = Math.cos(a) * R * 1.18; arch.push(P(tw([side * hw * 0.99, R + Math.sin(a) * R * 1.18, z + lz], true))); } arch.push(P(tw([side * hw * 0.99, lowerY, z - R * 1.18], true))); arch.push(P(tw([side * hw * 0.99, lowerY, z + R * 1.18], true)));
-          poly(arch, '#0b0b0c');
-          wheel(x, z, dl);
-        }
-      }
-      if(part.lower && name === 'rear'){
-        const F = [pts3[0], pts3[1], pts3[2], pts3[3]];
-        // bumper, plate, exhausts
-        rect(F, 0.04, 0.96, 0, 0.2, s.chrome ? '#c9ced2' : 'rgba(0,0,0,.45)');
-        rect(F, 0.4, 0.6, 0.24, 0.44, '#ece7d8'); rect(F, 0.43, 0.57, 0.31, 0.36, '#2d3a63');
-        const ex = (u) => { circ(F, u, 0.09, 0.03, 0.08, '#9aa0a4', 10); circ(F, u, 0.09, 0.019, 0.05, '#111', 10); exh.push(rearUV(F, u, 0.09)); };
-        if(s.exhaust === 'quad'){ ex(0.12); ex(0.2); ex(0.8); ex(0.88); } else if(s.exhaust === 'dual'){ ex(0.15); ex(0.85); } else if(s.exhaust === 'center'){ ex(0.46); ex(0.54); } else ex(0.82);
-        const lc = o.brake ? '#ff3b2a' : '#a3121a', L2 = s.lights;
-        const lit = (u, v) => lights.push(rearUV(F, u, v));
-        if(L2 === 'round4'){ for(const u of [0.09, 0.2, 0.8, 0.91]){ circ(F, u, 0.7, 0.045, 0.12, lc); } lit(0.15, 0.7); lit(0.85, 0.7); }
-        else if(L2 === 'round2'){ circ(F, 0.12, 0.7, 0.06, 0.15, lc); circ(F, 0.88, 0.7, 0.06, 0.15, lc); lit(0.12, 0.7); lit(0.88, 0.7); }
-        else if(L2 === 'bar'){ rect(F, 0.05, 0.95, 0.6, 0.82, lc); lit(0.15, 0.7); lit(0.85, 0.7); }
-        else if(L2 === 'strip'){ rect(F, 0.04, 0.96, 0.72, 0.8, lc); rect(F, 0.04, 0.18, 0.6, 0.86, lc); rect(F, 0.82, 0.96, 0.6, 0.86, lc); lit(0.11, 0.73); lit(0.89, 0.73); }
-        else if(L2 === 'tri'){ for(const u of [0.06, 0.12, 0.18, 0.79, 0.85, 0.91]) rect(F, u - 0.022, u + 0.022, 0.56, 0.9, lc); lit(0.12, 0.72); lit(0.85, 0.72); }
-        else if(L2 === 'lshape'){ for(const sd of [0, 1]){ const a = sd ? 0.97 : 0.03, b = sd ? 0.74 : 0.26; rect(F, Math.min(a, b), Math.max(a, b), 0.7, 0.86, lc); rect(F, sd ? 0.86 : 0.03, sd ? 0.97 : 0.14, 0.56, 0.86, lc); } lit(0.1, 0.75); lit(0.9, 0.75); }
-        else { rect(F, 0.04, 0.27, 0.58, 0.86, lc); rect(F, 0.73, 0.96, 0.58, 0.86, lc); lit(0.15, 0.72); lit(0.85, 0.72); }
-      }
-      if(part.lower && name === 'front'){
-        const F = [pts3[1], pts3[0], pts3[3], pts3[2]];
-        rect(F, 0.06, 0.3, 0.62, 0.82, '#f4efd8'); rect(F, 0.7, 0.94, 0.62, 0.82, '#f4efd8'); rect(F, 0.34, 0.66, 0.3, 0.6, '#16181a');
-      }
-      if(part.green && name === 'rear'){ const F = [pts3[0], pts3[1], pts3[2], pts3[3]]; decal(F, [[0.15, 0.2], [0.3, 0.2], [0.45, 0.85], [0.33, 0.85]], 'rgba(255,255,255,.1)'); }
+  const B = M.body, NS = B.rings.length, RL = B.rings[0].length, zb = (B.zrf + B.zrr) / 2;
+  const V = cam, Hv = (n, c) => { const v = v3.sub(V, c), vl = Math.hypot(...v), h = [L[0] + v[0] / vl, L[1] + v[1] / vl, L[2] + v[2] / vl], hl2 = Math.hypot(...h); return Math.max(0, v3.dot(n, [h[0] / hl2, h[1] / hl2, h[2] / hl2])); };
+  // shading: diffuse + clear-coat specular (paint), sky reflection (glass)
+  const tone = (cls, n, c) => {
+    const lam = Math.max(0, v3.dot(n, L)), sp = Math.pow(Hv(n, c), cls === 'glass' ? 30 : 48);
+    const sky = Math.max(0, n[1]);
+    if(cls === 'glass') return shade('#1f2a34', Math.min(0.15, -0.6 + lam * 0.15 + sky * 0.12 + sp * 0.45));
+    if(cls === 'trim') return shade('#1a1b1e', -0.3 + lam * 0.3 + sp * 0.5);
+    if(cls === 'under') return '#0c0c0d';
+    const base = cls === 'two' ? s.twoTone : paint;
+    return shade(base, Math.min(0.85, -0.4 + lam * 0.5 + sky * 0.12 + sp * 0.9));
+  };
+  const W = B.rings.map(r => r.map(p => tw(p, true)));
+  const items = [];
+  const classify = (i, k) => {
+    const a = B.meta[i], b = B.meta[i + 1], zm = (a.z + b.z) / 2;
+    if(k === 0 || k === RL - 1) return 'under';
+    const upperSide = k === 6 || k === 7 || k === RL - 7 || k === RL - 8, roofSeg = k === 8 || k === RL - 9;
+    if(a.cab && b.cab){
+      if(upperSide){ if(Math.abs(zm - zb) < 0.07) return 'trim'; if((k === 7 || k === RL - 8) && (zm > B.zrf || zm < B.zrr)) return 'paint'; return 'glass'; }
+      if(roofSeg) return zm > B.zrf || zm < B.zrr ? 'glass' : 'paint';
+    } else if(a.cab !== b.cab && (upperSide || roofSeg)) return 'glass';
+    if(s.twoTone && (k <= 2 || k >= RL - 3)) return 'two';
+    return 'paint';
+  };
+  for(let i = 0; i < NS - 1; i++){
+    for(let k = 0; k < RL; k++){
+      const k2 = (k + 1) % RL, q = [W[i][k], W[i][k2], W[i + 1][k2], W[i + 1][k]];
+      const c = [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4, (q[0][2] + q[1][2] + q[2][2] + q[3][2]) / 4];
+      let n = v3.cross(v3.sub(q[2], q[0]), v3.sub(q[3], q[1]));
+      const axisC = tw([0, 0.55, (B.meta[i].z + B.meta[i + 1].z) / 2], true);
+      if(v3.dot(n, v3.sub(c, axisC)) < 0) n = [-n[0], -n[1], -n[2]];
+      const nl = Math.hypot(...n) || 1; n = [n[0] / nl, n[1] / nl, n[2] / nl];
+      if(v3.dot(n, v3.sub(cam, c)) <= 0) continue;
+      items.push({q, c, n, cls: classify(i, k), dist: Math.hypot(...v3.sub(c, cam))});
     }
-    // roadster cockpit: headrests and helmets sit in the open cabin
-    if(part.lower && s.roadster){
-      for(const sd of (car.rhd ? [1, -1] : [-1, 1])){
-        const hx = sd * hw * 0.42, z0 = -hl * 0.05;
-        const hr = [[hx - 0.17, d.belt, z0], [hx + 0.17, d.belt, z0], [hx + 0.14, d.belt + 0.3, z0], [hx - 0.14, d.belt + 0.3, z0]].map(p => P(tw(p, true)));
-        poly(hr, '#1b1b1d');
-      }
-      const dx = (car.rhd ? 1 : -1) * hw * 0.42, hc = P(tw([dx, d.belt + 0.42, -hl * 0.02], true)), hcr = P(tw([dx + 0.12, d.belt + 0.42, -hl * 0.02], true));
-      g.fillStyle = '#2a2622'; g.beginPath(); g.arc(hc[0], hc[1], Math.abs(hcr[0] - hc[0]), 0, Math.PI * 2); g.fill();
-      const ws = [[-hw * 0.85, d.belt, hl * 0.25], [hw * 0.85, d.belt, hl * 0.25], [hw * 0.75, d.belt + 0.32, hl * 0.12], [-hw * 0.75, d.belt + 0.32, hl * 0.12]].map(p => P(tw(p, true)));
-      g.strokeStyle = '#151515'; g.lineWidth = Math.max(1.5, o.width * 0.008); g.fillStyle = 'rgba(190,210,225,.18)';
-      g.beginPath(); g.moveTo(ws[0][0], ws[0][1]); for(let i = 1; i < 4; i++) g.lineTo(ws[i][0], ws[i][1]); g.closePath(); g.fill(); g.stroke();
+  }
+  // end caps carry the lights, plate and exhausts
+  for(const end of [0, NS - 1]){
+    const m = B.meta[end], zz = end === 0 ? -hl : hl, ring = W[end];
+    const c = tw([0, (m.top + m.yB) / 2, zz], true), n0 = tw([0, 0, end === 0 ? -1 : 1]);
+    if(v3.dot(n0, v3.sub(cam, c)) <= 0) continue;
+    const F = [[-m.w * 0.92, m.yB, zz], [m.w * 0.92, m.yB, zz], [m.w * 0.92, m.top, zz], [-m.w * 0.92, m.top, zz]].map(p => tw(p, true));
+    items.push({cap: end, q: ring, c, n: n0, F: end === 0 ? F : [F[1], F[0], F[3], F[2]], dist: Math.hypot(...v3.sub(c, cam)) + 0.01});
+  }
+  items.sort((a, b) => b.dist - a.dist);
+  for(const it of items){
+    if(it.cap === undefined){ const col = tone(it.cls, it.n, it.c), pp = it.q.map(P); poly(pp, col); g.strokeStyle = col; g.lineWidth = 1; g.lineJoin = 'round'; g.stroke(); continue; }
+    poly(it.q.map(P), tone('paint', it.n, it.c));
+    const F = it.F;
+    if(s.twoTone) rect(F, 0, 1, 0, 0.45, shade(s.twoTone, -0.3));
+    if(s.stripes && it.cap === 0){ rect(F, 0.4, 0.47, 0.2, 1, s.stripes); rect(F, 0.53, 0.6, 0.2, 1, s.stripes); }
+    if(it.cap === 0){
+      rect(F, 0.03, 0.97, 0, 0.2, s.chrome ? '#c9ced2' : 'rgba(0,0,0,.5)');
+      rect(F, 0.4, 0.6, 0.24, 0.44, '#ece7d8'); rect(F, 0.43, 0.57, 0.31, 0.36, '#2d3a63');
+      const ex = (u) => { circ(F, u, 0.09, 0.03, 0.08, '#9aa0a4', 10); circ(F, u, 0.09, 0.019, 0.05, '#111', 10); exh.push(rearUV(F, u, 0.09)); };
+      if(s.exhaust === 'quad'){ ex(0.12); ex(0.2); ex(0.8); ex(0.88); } else if(s.exhaust === 'dual'){ ex(0.15); ex(0.85); } else if(s.exhaust === 'center'){ ex(0.46); ex(0.54); } else ex(0.82);
+      const lc = o.brake ? '#ff3b2a' : '#a3121a', L2 = s.lights, hi = 'rgba(255,190,170,.35)';
+      const lit = (u, v) => lights.push(rearUV(F, u, v));
+      if(L2 === 'round4'){ for(const u of [0.09, 0.2, 0.8, 0.91]){ circ(F, u, 0.7, 0.045, 0.12, lc); circ(F, u - 0.012, 0.74, 0.012, 0.03, hi); } lit(0.15, 0.7); lit(0.85, 0.7); }
+      else if(L2 === 'round2'){ circ(F, 0.12, 0.7, 0.06, 0.15, lc); circ(F, 0.88, 0.7, 0.06, 0.15, lc); lit(0.12, 0.7); lit(0.88, 0.7); }
+      else if(L2 === 'bar'){ rect(F, 0.05, 0.95, 0.6, 0.82, lc); rect(F, 0.05, 0.95, 0.76, 0.8, hi); lit(0.15, 0.7); lit(0.85, 0.7); }
+      else if(L2 === 'strip'){ rect(F, 0.04, 0.96, 0.72, 0.8, lc); rect(F, 0.04, 0.18, 0.6, 0.86, lc); rect(F, 0.82, 0.96, 0.6, 0.86, lc); lit(0.11, 0.73); lit(0.89, 0.73); }
+      else if(L2 === 'tri'){ for(const u of [0.06, 0.12, 0.18, 0.79, 0.85, 0.91]) rect(F, u - 0.022, u + 0.022, 0.56, 0.9, lc); lit(0.12, 0.72); lit(0.85, 0.72); }
+      else if(L2 === 'lshape'){ for(const sd of [0, 1]){ const a = sd ? 0.97 : 0.03, b = sd ? 0.74 : 0.26; rect(F, Math.min(a, b), Math.max(a, b), 0.7, 0.86, lc); rect(F, sd ? 0.86 : 0.03, sd ? 0.97 : 0.14, 0.56, 0.86, lc); } lit(0.1, 0.75); lit(0.9, 0.75); }
+      else { rect(F, 0.04, 0.27, 0.58, 0.86, lc); rect(F, 0.73, 0.96, 0.58, 0.86, lc); rect(F, 0.05, 0.26, 0.78, 0.83, hi); rect(F, 0.74, 0.95, 0.78, 0.83, hi); lit(0.15, 0.72); lit(0.85, 0.72); }
+    } else {
+      rect(F, 0.06, 0.3, 0.62, 0.84, '#f4efd8'); rect(F, 0.7, 0.94, 0.62, 0.84, '#f4efd8'); rect(F, 0.34, 0.66, 0.28, 0.58, '#16181a'); rect(F, 0.03, 0.97, 0, 0.16, 'rgba(0,0,0,.45)');
     }
+  }
+  // near side: wheel arches, then the wheels sitting in them, then the door mirror
+  for(const side of [-1, 1]){
+    const nrm = tw([side, 0, 0]), pc = tw([side * hw, 0.6, 0], true);
+    if(v3.dot(nrm, v3.sub(cam, pc)) <= 0) continue;
+    for(const [x, z, dl] of wheels){
+      if(Math.sign(x) !== side) continue;
+      const R = d.r, xs = side * (hw + 0.035);
+      const arch = []; for(let i = 0; i <= 12; i++){ const a = i / 12 * Math.PI, lz = Math.cos(a) * R * 1.16; arch.push(P(tw([xs, R + Math.sin(a) * R * 1.16, z + lz], true))); } arch.push(P(tw([xs, 0.27, z - R * 1.16], true))); arch.push(P(tw([xs, 0.27, z + R * 1.16], true)));
+      poly(arch, '#0a0a0b');
+      wheel(x, z, dl);
+    }
+    if(!s.roadster){
+      const mz = B.zws - 0.08, my = B.belt + 0.1, mx = side * (B.gw + 0.05);
+      const mir = [[mx, my - 0.05, mz], [mx + side * 0.17, my - 0.04, mz - 0.05], [mx + side * 0.17, my + 0.07, mz - 0.05], [mx, my + 0.07, mz]].map(p => P(tw(p, true)));
+      poly(mir, tone('paint', nrm, pc));
+      const mg = [[mx + side * 0.02, my - 0.03, mz - 0.01], [mx + side * 0.15, my - 0.025, mz - 0.055], [mx + side * 0.15, my + 0.055, mz - 0.055], [mx + side * 0.02, my + 0.055, mz - 0.01]].map(p => P(tw(p, true)));
+      poly(mg, '#2a3540');
+    }
+  }
+  // roadster cockpit: headrests and helmets sit in the open cabin
+  if(s.roadster){
+    for(const sd of (car.rhd ? [1, -1] : [-1, 1])){
+      const hx = sd * hw * 0.42, z0 = -hl * 0.05;
+      poly([[hx - 0.17, d.belt, z0], [hx + 0.17, d.belt, z0], [hx + 0.14, d.belt + 0.3, z0], [hx - 0.14, d.belt + 0.3, z0]].map(p => P(tw(p, true))), '#1b1b1d');
+    }
+    const dx = (car.rhd ? 1 : -1) * hw * 0.42, hc = P(tw([dx, d.belt + 0.42, -hl * 0.02], true)), hcr = P(tw([dx + 0.12, d.belt + 0.42, -hl * 0.02], true));
+    g.fillStyle = '#2a2622'; g.beginPath(); g.arc(hc[0], hc[1], Math.abs(hcr[0] - hc[0]), 0, Math.PI * 2); g.fill();
+    const ws = [[-hw * 0.85, d.belt, hl * 0.25], [hw * 0.85, d.belt, hl * 0.25], [hw * 0.75, d.belt + 0.32, hl * 0.12], [-hw * 0.75, d.belt + 0.32, hl * 0.12]].map(p => P(tw(p, true)));
+    g.strokeStyle = '#151515'; g.lineWidth = Math.max(1.5, o.width * 0.008); g.fillStyle = 'rgba(190,210,225,.18)';
+    g.beginPath(); g.moveTo(ws[0][0], ws[0][1]); for(let i = 1; i < 4; i++) g.lineTo(ws[i][0], ws[i][1]); g.closePath(); g.fill(); g.stroke();
   }
   // rear wing / spoilers last: they sit closest to the chase camera
   const zr = -hl + 0.22, top = d.belt;
