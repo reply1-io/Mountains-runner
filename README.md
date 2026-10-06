@@ -5,9 +5,9 @@ A mobile-first arcade driving game set on the Tail of the Dragon (US 129, Deals 
 Open `index.html` in any phone or desktop browser. No build step and no dependencies.
 
 ## Features
-- 15 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
+- 16 real cars in three garages, with factory horsepower, weight, 0-60, top speed, gearbox and real paint names:
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
-  - European: Porsche 911 GT3, BMW M3 (E46), Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
+  - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
 - Realistic driving model: power, aero drag and gearing fitted to each car's real 0-60 and top speed; tire grip shared between braking and cornering (friction circle); no-ABS cars lose steering under hard braking; real road grades
 - Chase or hood camera, button or drag-wheel steering, and a full-sim mode with steering assist turned off
