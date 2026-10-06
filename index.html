@@ -1534,6 +1534,15 @@ function update(dt){
   }
   position += mph * UPS * dt;
   if(state === 'race') stats.top = Math.max(stats.top, mph);
+  wheelRot = (wheelRot + drv.v * (1 + (drv.spin || 0) * 2) * dt / 0.32) % 6.283;
+  if(!offroad && drv.v > 2 && crashT <= 0){
+    const ms = segAt(position + PLAYER_Z), half = 0.235;
+    const add = (x, a) => { if(a < 0.05) return; const tm = ms.tm || (ms.tm = []); const e = tm.find(m => Math.abs(m[0] - x) < 0.03); if(e) e[1] = Math.max(e[1], a); else if(tm.length < 6) tm.push([x, a]); };
+    const rearA = Math.max(tireR * 0.9, (drv.spin || 0) * (car.drive === 'FWD' ? 0 : 1), locked ? 0.6 : 0), frontA = Math.max(tireF * 0.7, locked ? 0.7 : 0, car.drive === 'FWD' ? (drv.spin || 0) : 0);
+    const cs = Math.cos(psi), ln = Math.sin(psi) * 1.3;
+    add(playerX - half * cs, rearA); add(playerX + half * cs, rearA);
+    add(playerX - half * cs + ln, frontA); add(playerX + half * cs + ln, frontA);
+  }
   // flames: anti-lag keeps firing off throttle; ordinary pops fade out after you lift
   if(thrP < 0.1 && drv.rpm > car.redline * 0.42) liftT += dt; else if(thrP > 0.3) liftT = 0;
   flameT = Math.max(0, flameT - dt);
@@ -1579,7 +1588,7 @@ function update(dt){
   const dw = playerW();
   if(settings.cam !== 'hood' || attract){
     if(skid > 0.15 || (offroad && mph > 10)){
-      for(const sd of [-1, 1]) if(Math.random() < 0.25 + skid * 0.5) particles.push({x: W / 2 - yawX + sd * dw * 0.34 + (Math.random() - 0.5) * dw * 0.08, y: VH * 0.97, vx: (Math.random() - 0.5) * 30 * DPR, vy: -(10 + Math.random() * 25) * DPR, life: 0.7, max: 0.7, r: dw * 0.025, c: offroad ? 'rgba(122,98,66,' : 'rgba(225,225,225,', smoke: true});
+      for(const sd of [-1, 1]) if(Math.random() < 0.25 + skid * 0.5) particles.push({x: W / 2 - yawX + sd * dw * 0.34 + (Math.random() - 0.5) * dw * 0.08, y: VH * 0.935, vx: (Math.random() - 0.5) * 30 * DPR, vy: -(10 + Math.random() * 25) * DPR, life: 0.7, max: 0.7, r: dw * 0.025, c: offroad ? 'rgba(122,98,66,' : 'rgba(225,225,225,', smoke: true});
     }
   }
   for(let i = particles.length - 1; i >= 0; i--){
@@ -1645,6 +1654,7 @@ function drawSegment(s){
     stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.9, 0.05, 'rgba(40,32,24,.1)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.9, 0.05, 'rgba(40,32,24,.1)');
   }
   if(settings.road === 'wet' && state !== 'attract'){ poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, 'rgba(8,14,24,.22)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, 0.5, 0.18, 'rgba(190,205,225,.06)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, -0.5, 0.18, 'rgba(190,205,225,.06)'); }
+  if(s.tm && b.w > 2) for(const [mx, ma] of s.tm) stripe(a.x, a.y, a.w, b.x, b.y, b.w, mx, 0.032, `rgba(14,14,14,${(ma * 0.55).toFixed(2)})`);
   if(s.patch) stripe(a.x, a.y, a.w, b.x, b.y, b.w, s.patch[0], s.patch[1], 'rgba(0,0,0,.09)');
   if(s.marks && b.w > 3){ const o = s.marks; stripe(a.x, a.y, a.w, b.x, b.y, b.w, o - 0.13, 0.012, 'rgba(15,15,15,.28)'); stripe(a.x, a.y, a.w, b.x, b.y, b.w, o + 0.13, 0.012, 'rgba(15,15,15,.28)'); }
   if(b.w > 6){
@@ -1720,7 +1730,7 @@ function render(){
       if(c.model && wpx > 22 * DPR && sy < s.clip + wpx){
         ctx.save(); ctx.beginPath(); ctx.rect(-W, -VH, W * 3, s.clip + VH); ctx.clip();
         const distM = Math.max(6, (c.z - rp) * 1609.34 / UPM);
-        render3D(ctx, c.model, {cx: sx, gy: sy, width: wpx * 0.9, yaw: Math.atan(s.dxv / SEG) + (c.dir < 0 ? Math.PI : 0), delta: 0, roll: 0, pitch: 0, brake: false, paint: c.paint, camH: 2.3, camD: distM});
+        render3D(ctx, c.model, {cx: sx, gy: sy, width: wpx * 0.9, yaw: Math.atan(s.dxv / SEG) + (c.dir < 0 ? Math.PI : 0), delta: 0, roll: 0, pitch: 0, brake: false, paint: c.paint, camH: 2.3, camD: distM, spin: performance.now() / 1000 * c.mph * 1.4 * (c.dir < 0 ? -1 : 1), v: c.mph * 0.447});
         ctx.restore();
         r = {dw: wpx, dh: wpx * 0.62};
       } else r = drawSprite(c.img, c.w, sc, sx, sy, s.clip);
@@ -1766,6 +1776,17 @@ function render(){
 // car visibly turns, shows its side when it yaws and steers its front wheels.
 const v3 = {sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]};
 const MID_ENGINE = {c8: 1, svj: 1, elise: 1};
+const WHEELS = {
+  mustang: {style: 'five', finish: '#43474c', caliper: '#c41e25'}, charger70: {style: 'rally', finish: '#c8ccd0', caliper: '#2b2d30'},
+  hellcat: {style: 'five', finish: '#1d1f22', caliper: '#c41e25'}, c8: {style: 'five', finish: '#c3c7cb', caliper: '#c41e25'},
+  viper: {style: 'five', finish: '#d4d8dc', caliper: '#3a3c40'}, gt3: {style: 'ten', finish: '#c5c9cd', caliper: '#c41e25'},
+  m3: {style: 'ten', finish: '#c9cdd1', caliper: '#4a4d52'}, e30: {style: 'mesh', finish: '#d0d3d6', caliper: '#3a3c40'},
+  golf: {style: 'holes', finish: '#c9ccd0', caliper: '#3a3c40'}, elise: {style: 'six', finish: '#c7cbcf', caliper: '#3a3c40'},
+  svj: {style: 'y5', finish: '#18191b', caliper: '#f08a1c'}, ae86: {style: 'eight', finish: '#c3c6ca', caliper: '#3a3c40'},
+  r34: {style: 'five', finish: '#b7bcc1', caliper: '#c9a227'}, supra: {style: 'five', finish: '#c9cdd1', caliper: '#3a3c40'},
+  rx7: {style: 'five', finish: '#c6cacd', caliper: '#3a3c40'}, miata: {style: 'holes', finish: '#c9ccd0', caliper: '#3a3c40'},
+};
+CARS.forEach(c => { c.wheel = WHEELS[c.id]; });
 function carDims(car){
   const s = car.s;
   const len = clamp(car.L * 1.68, 3.9, 4.95), wid = 1.68 + (s.bodyW - 0.9) * 1.4 + (s.hips ? 0.08 : 0);
@@ -1774,8 +1795,9 @@ function carDims(car){
   return {len, wid, hgt, belt, r: car.lb > 3600 ? 0.35 : car.lb < 2300 ? 0.29 : 0.32};
 }
 // hexahedron between a bottom and a top rectangle; faces wound so normals can be fixed outward later
-function hull(hb, yb, zb0, zb1, ht, yt, zt0, zt1){
-  const B = [[-hb, yb, zb0], [hb, yb, zb0], [hb, yb, zb1], [-hb, yb, zb1]];
+function hull(hb, yb, zb0, zb1, ht, yt, zt0, zt1, hbr){
+  const hr = hbr || hb;
+  const B = [[-hr, yb, zb0], [hr, yb, zb0], [hb, yb, zb1], [-hb, yb, zb1]];
   const T = [[-ht, yt, zt0], [ht, yt, zt0], [ht, yt, zt1], [-ht, yt, zt1]];
   return {center: [0, (yb + yt) / 2, (zb0 + zb1 + zt0 + zt1) / 4], faces: {
     rear: [B[0], B[1], T[1], T[0]], front: [B[2], B[3], T[3], T[2]],
@@ -1784,9 +1806,9 @@ function hull(hb, yb, zb0, zb1, ht, yt, zt0, zt1){
 function buildMesh(car){
   const s = car.s, d = carDims(car), hw = d.wid / 2, hl = d.len / 2, mid = MID_ENGINE[car.id];
   const parts = [];
-  const lowerY = 0.2, split = s.twoTone ? (lowerY + d.belt) / 2 : lowerY;
+  const lowerY = 0.27, split = s.twoTone ? (lowerY + d.belt) / 2 : lowerY;
   // lower body (two bands so two-tone paint works)
-  const lowPart = hull(hw, lowerY, -hl, hl, hw * 0.94, d.belt, -hl + 0.07, hl - 0.16);
+  const lowPart = hull(hw, lowerY, -hl, hl, hw * 0.94, d.belt, -hl + 0.07, hl - 0.16, hw * 0.86);
   parts.push({h: lowPart, col: {rear: 'paint', front: 'paint', left: 'paint', right: 'paint', top: 'paintTop'}, layer: 1, lower: true});
   // greenhouse
   if(!s.roadster){
@@ -1803,7 +1825,7 @@ const meshCache = {};
 function mesh(car){ return meshCache[car.id] || (meshCache[car.id] = buildMesh(car)); }
 function render3D(g, car, o){
   const M = mesh(car), d = M.d, s = car.s, hw = d.wid / 2, hl = d.len / 2;
-  const lowerY = 0.2;
+  const lowerY = 0.27;
   const cy = Math.cos(o.yaw), sy = Math.sin(o.yaw), cr = Math.cos(o.roll || 0), sr = Math.sin(o.roll || 0);
   const camH = o.camH || 2.1, camD = o.camD || 6.4, pa = Math.atan2(camH - 0.55, camD), ca = Math.cos(pa), sa = Math.sin(pa);
   const f = o.width * (camD - hl) / d.wid;
@@ -1836,16 +1858,67 @@ function render3D(g, car, o){
   // ground shadow
   g.fillStyle = 'rgba(0,0,0,.42)';
   poly([[-hw * 1.05, 0, -hl * 1.02], [hw * 1.05, 0, -hl * 1.02], [hw * 1.05, 0, hl * 1.02], [-hw * 1.05, 0, hl * 1.02]].map(p => P(tw(p))), 'rgba(0,0,0,.42)');
-  // tyre treads (visible under the body)
-  const wb = car.L / 2, tx = hw - 0.16;
+  // tyres: real cylinders (tread band + sidewall) with the car's own wheel design, brakes behind the spokes
+  const wb = car.L / 2, tx = hw - 0.125, WS = car.wheel || {style: 'five', finish: '#b9bec2', caliper: '#3a3c40'};
   const wheels = [[-tx, -wb, 0], [tx, -wb, 0], [-tx, wb, o.delta], [tx, wb, o.delta]];
-  for(const [x, z, dl] of wheels){
-    const c = Math.cos(dl), sn = Math.sin(dl), R = d.r, wd = 0.13;
-    const pt = (lx, ly, lz) => tw([x + lx * c + lz * sn, ly, z - lx * sn + lz * c]);
-    const box = [[-wd, 0, -R * 0.8], [wd, 0, -R * 0.8], [wd, 0, R * 0.8], [-wd, 0, R * 0.8]].map(p => P(pt(...p)));
-    const boxT = [[-wd, R * 1.4, -R * 0.8], [wd, R * 1.4, -R * 0.8], [wd, R * 1.4, R * 0.8], [-wd, R * 1.4, R * 0.8]].map(p => P(pt(...p)));
-    poly([box[0], box[1], boxT[1], boxT[0]], '#0d0d0f'); poly([box[1], box[2], boxT[2], boxT[1]], '#0d0d0f'); poly([box[3], box[0], boxT[0], boxT[3]], '#0d0d0f');
-  }
+  const spin = o.spin || 0, blur = clamp(((o.v || 0) - 9) / 22, 0, 0.8);
+  const wheel = (x, z, dl) => {
+    const R = d.r, c = Math.cos(dl), sn = Math.sin(dl), wd = 0.24, side = x < 0 ? -1 : 1, N = 22;
+    const W3 = (lx, ly, lz) => tw([x + lx * c + lz * sn, ly, z - lx * sn + lz * c]);
+    const ringW = (lx, rad, n) => { const a = []; for(let i = 0; i < (n || N); i++){ const t = i / (n || N) * 6.283; a.push(W3(lx, R + Math.sin(t) * rad, Math.cos(t) * rad)); } return a; };
+    const outX = side * wd / 2, inX = -side * wd / 2;
+    const ro = ringW(outX, R), ri = ringW(inX, R), axis = W3(0, R, 0);
+    const rub = (lam, k) => shade('#2b2b2e', -0.55 + lam * 0.5 + (k || 0));
+    const block = Math.floor(spin / 6.283 * N * 2);
+    for(let i = 0; i < N; i++){
+      const j = (i + 1) % N, q = [ro[i], ro[j], ri[j], ri[i]];
+      const mid = [(ro[i][0] + ro[j][0] + ri[i][0] + ri[j][0]) / 4, (ro[i][1] + ro[j][1] + ri[i][1] + ri[j][1]) / 4, (ro[i][2] + ro[j][2] + ri[i][2] + ri[j][2]) / 4];
+      let n = v3.sub(mid, axis); const nl = Math.hypot(...n); n = [n[0] / nl, n[1] / nl, n[2] / nl];
+      if(v3.dot(n, v3.sub(cam, mid)) <= 0) continue;
+      poly(q.map(P), rub(Math.max(0, v3.dot(n, L)), (i + block) % 2 ? -0.08 : 0));
+      // tread grooves
+      if(i % 2 === 0){ g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1; g.beginPath(); for(const f of [0.3, 0.7]){ const a1 = P([lerp(ro[i][0], ri[i][0], f), lerp(ro[i][1], ri[i][1], f), lerp(ro[i][2], ri[i][2], f)]), a2 = P([lerp(ro[j][0], ri[j][0], f), lerp(ro[j][1], ri[j][1], f), lerp(ro[j][2], ri[j][2], f)]); g.moveTo(a1[0], a1[1]); g.lineTo(a2[0], a2[1]); } g.stroke(); }
+    }
+    const co = W3(outX, R, 0), on = v3.sub(co, axis);
+    if(v3.dot(on, v3.sub(cam, co)) <= 0){ poly(ri.map(P), rub(0.2, -0.1)); return; }
+    const lam = Math.max(0, v3.dot([on[0] / (wd / 2), 0, on[2] / (wd / 2)], L));
+    const ox2 = outX + side * 0.004;
+    const disc = (rad, col, n) => poly(ringW(ox2, rad, n || 20).map(P), col);
+    disc(R, rub(lam)); disc(R * 0.93, rub(lam, 0.05)); disc(R * 0.86, rub(lam, -0.04));
+    // rim lip, barrel, brake disc and caliper
+    disc(R * 0.72, shade(WS.finish, -0.2 + lam * 0.4));
+    disc(R * 0.68, '#1d1f22');
+    disc(R * 0.52, shade('#8a8d90', -0.25 + lam * 0.3)); disc(R * 0.2, '#3a3c3f');
+    const dp = (r, a, off) => W3(ox2, R + Math.sin(a) * r + Math.cos(a) * off, Math.cos(a) * r - Math.sin(a) * off);
+    const cal = []; for(let i = 0; i <= 6; i++){ const a = Math.PI * (0.58 + i * 0.045); cal.push(P(dp(R * 0.62, a, 0))); } for(let i = 6; i >= 0; i--){ const a = Math.PI * (0.58 + i * 0.045); cal.push(P(dp(R * 0.42, a, 0))); }
+    poly(cal, WS.caliper);
+    // spokes (blurred into a disc at speed)
+    if(blur > 0){ g.globalAlpha *= 1; const old = g.globalAlpha; g.globalAlpha = old * blur * 0.75; disc(R * 0.66, shade(WS.finish, -0.25 + lam * 0.3)); g.globalAlpha = old; }
+    const old = g.globalAlpha; g.globalAlpha = old * (1 - blur * 0.85);
+    const fin = shade(WS.finish, -0.15 + lam * 0.45), spokeQ = (a, r0, r1, w0, w1) => poly([dp(r0, a, -w0), dp(r1, a, -w1), dp(r1, a, w1), dp(r0, a, w0)].map(P), fin);
+    const st = WS.style;
+    if(st === 'holes' || st === 'rally'){
+      disc(R * 0.66, st === 'rally' ? shade('#4b4f53', -0.2 + lam * 0.3) : fin);
+      const nh = st === 'rally' ? 5 : 8;
+      for(let k = 0; k < nh; k++){ const a = spin + k / nh * 6.283, pts = []; for(let i = 0; i < 10; i++){ const t = i / 10 * 6.283; pts.push(P(dp(R * 0.44 + Math.cos(t) * R * (st === 'rally' ? 0.07 : 0.1), a, Math.sin(t) * R * (st === 'rally' ? 0.13 : 0.1)))); } poly(pts, '#141518'); }
+      if(st === 'rally') disc(R * 0.24, shade('#d9dde0', -0.1 + lam * 0.4));
+    } else {
+      const n = {five: 5, six: 6, eight: 8, ten: 5, y5: 5, mesh: 10}[st] || 5;
+      for(let k = 0; k < n; k++){
+        const a = spin + k / n * 6.283;
+        if(st === 'ten'){ spokeQ(a - 0.13, R * 0.17, R * 0.66, R * 0.035, R * 0.05); spokeQ(a + 0.13, R * 0.17, R * 0.66, R * 0.035, R * 0.05); }
+        else if(st === 'y5'){ spokeQ(a, R * 0.17, R * 0.4, R * 0.06, R * 0.05); spokeQ(a - 0.22, R * 0.38, R * 0.66, R * 0.035, R * 0.05); spokeQ(a + 0.22, R * 0.38, R * 0.66, R * 0.035, R * 0.05); }
+        else if(st === 'mesh'){ spokeQ(a, R * 0.17, R * 0.66, R * 0.02, R * 0.025); g.strokeStyle = fin; g.lineWidth = Math.max(1, o.width * 0.004); const p1 = P(dp(R * 0.25, a, 0)), p2 = P(dp(R * 0.64, a + 0.55, 0)), p3 = P(dp(R * 0.64, a - 0.55, 0)); g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.moveTo(p1[0], p1[1]); g.lineTo(p3[0], p3[1]); g.stroke(); }
+        else { const ww = st === 'six' ? 0.075 : st === 'eight' ? 0.035 : 0.055; spokeQ(a, R * 0.17, R * 0.66, R * ww, R * ww * 1.6); }
+      }
+      disc(R * 0.19, fin, 12);
+    }
+    g.globalAlpha = old;
+    disc(R * 0.07, '#121315', 10);
+  };
+  // far-side wheels first; the body covers them except below the sills
+  const order = wheels.map(w => [w, Math.hypot(...v3.sub(tw([w[0], d.r, w[1]]), cam))]).sort((p, q) => q[1] - p[1]);
+  for(const [[x, z, dl]] of order) wheel(x, z, dl);
   const lights = [], exh = [];
   const rearUV = (F, u, v) => { // F = [BL, BR, TR, TL] world points of a quad
     const b = [lerp(F[0][0], F[1][0], u), lerp(F[0][1], F[1][1], u), lerp(F[0][2], F[1][2], u)];
@@ -1892,7 +1965,7 @@ function render3D(g, car, o){
           const disc = (rad, col) => { const pts = []; for(let i = 0; i < 16; i++){ const a = i / 16 * Math.PI * 2, lz = Math.cos(a) * rad, ly = R + Math.sin(a) * rad; pts.push(P(tw([x + side * 0.13 + lz * sn, ly, z + lz * c]))); } poly(pts, col); };
           const arch = []; for(let i = 0; i <= 10; i++){ const a = i / 10 * Math.PI, lz = Math.cos(a) * R * 1.18; arch.push(P(tw([side * hw * 0.99, R + Math.sin(a) * R * 1.18, z + lz], true))); } arch.push(P(tw([side * hw * 0.99, lowerY, z - R * 1.18], true))); arch.push(P(tw([side * hw * 0.99, lowerY, z + R * 1.18], true)));
           poly(arch, '#0b0b0c');
-          disc(R, '#121214'); disc(R * 0.66, shade('#a7adb2', -0.3 + fi.lam * 0.4)); disc(R * 0.2, '#2a2c2f');
+          wheel(x, z, dl);
         }
       }
       if(part.lower && name === 'rear'){
@@ -1950,7 +2023,7 @@ function render3D(g, car, o){
   if(s.wing === 'ducktail') poly([[-hw * 0.9, top, -hl + 0.3], [hw * 0.9, top, -hl + 0.3], [hw * 0.9, top + 0.08, -hl + 0.06], [-hw * 0.9, top + 0.08, -hl + 0.06]].map(p => P(tw(p, true))), shade(paint, -0.1));
   return {lights, exh};
 }
-let playerLights = [], flameT = 0, flameBig = false, liftT = 0;
+let playerLights = [], flameT = 0, flameBig = false, liftT = 0, wheelRot = 0;
 function drawPlayer(){
   const dw = playerW();
   const bounce = mph > 1 ? Math.sin(performance.now() / 45) * DPR * (offroad ? 3 : 0.8) * Math.min(1, mph / 60) : 0;
@@ -1958,7 +2031,7 @@ function drawPlayer(){
   const beta = Math.atan2(vyB, Math.max(drv.v, 3));
   const yaw = clamp(psi + beta * 0.9 + yawR * 0.2, -0.75, 0.75) + (crashT > 0 ? Math.sin(crashT * 9) * 0.12 : 0);
   const roll = clamp(-latG, -1.2, 1.2) * 0.012;
-  const res = render3D(ctx, player.car, {cx: W / 2 - yawX, gy: VH * 0.985 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint});
+  const res = render3D(ctx, player.car, {camH: 1.6, camD: 6.2, cx: W / 2 - yawX, gy: VH * 0.95 + bounce, width: dw * 0.9, yaw, delta: clamp(deltaVis * 1.8, -0.55, 0.55), roll, pitch: clamp(lonG, -1.2, 1) * 0.035, brake: braking, paint: player.paint, spin: wheelRot, v: drv.v * (1 + (drv.spin || 0) * 2)});
   playerLights = res.lights;
   if(flameT > 0){
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -2180,7 +2253,7 @@ function drawPreview3D(now){
   const fl = pctx.createRadialGradient(w / 2, h * 0.72, 0, w / 2, h * 0.72, w * 0.45); fl.addColorStop(0, 'rgba(120,128,134,.45)'); fl.addColorStop(1, 'rgba(90,95,99,0)');
   pctx.fillStyle = fl; pctx.fillRect(0, 0, w, h);
   const t = now / 1000;
-  render3D(pctx, car, {cx: w / 2, gy: h * 0.74, width: w * 0.3, yaw: Math.PI + t * 0.45, delta: Math.sin(t * 0.9) * 0.35, roll: 0, pitch: 0, brake: false, paint, camH: 1.5, camD: 8});
+  render3D(pctx, car, {spin: 0, v: 0, cx: w / 2, gy: h * 0.74, width: w * 0.3, yaw: Math.PI + t * 0.45, delta: Math.sin(t * 0.9) * 0.35, roll: 0, pitch: 0, brake: false, paint, camH: 1.5, camD: 8});
 }
 function attractCar(){ player = playerSprites(); }
 function setPalette(){ pal = PAL[settings.tod] || PAL.gold; buildLayers(); }
