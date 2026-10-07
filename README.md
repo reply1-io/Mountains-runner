@@ -10,6 +10,7 @@ Open `index.html` in any phone or desktop browser. No build step. The 3D graphic
   - American: Ford Mustang GT, 1970 Dodge Charger R/T 426 Hemi, Dodge Challenger SRT Hellcat Widebody, Chevrolet Corvette Stingray Z51 (C8), 1996 Dodge Viper GTS
   - European: Porsche 911 GT3, BMW M3 (E46), BMW M3 (E30), BMW 3.0 CSL "Batmobile", Oreca 07 LMP2 prototype, Volkswagen Golf GTI 16V (Mk2), Lotus Elise S1, Lamborghini Aventador SVJ
   - JDM: Toyota Sprinter Trueno AE86, Nissan Skyline GT-R V-Spec (R34), Toyota Supra Turbo (Mk IV), Mazda RX-7 (FD3S), Mazda MX-5 Miata (NA)
+- Race Circuit realism: an 11 m wide track with rubber and skid marks, 300/200/100 m boards before corners, and seven rival race cars on a starting grid with a live race position.
 - Three maps: Tail of the Dragon (US 129), Race Circuit (a road course with gravel traps, kerbs, a concrete wall and catch fence, crowds, pop-up tents and parked cars), and Forest Stage, a 6-mile gravel rally stage with tyre walls, chevrons, tape fences, spectator tents and birch trees (pick it under Map in the garage).
 - Stylised low-poly world: faceted pine forest, bushes, rocks, tyre walls, painted grass, film grade, and a Dirt road option with ruts, dust and lower grip.
 - Rally-game look: overcast default light, close high chase camera, big progress readout, red and white chevrons on tight bends.
