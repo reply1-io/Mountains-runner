@@ -81,6 +81,16 @@ button{font:inherit;color:inherit}
 .mode{flex:1;height:34px;border-radius:9px;border:1px solid var(--line);background:transparent;font-family:var(--display);font-weight:700;cursor:pointer}
 .mode.on{background:var(--accent);color:#10201a;border-color:transparent}
 .mode:disabled{opacity:.3;cursor:default}
+.tachrow{display:flex;align-items:center;gap:8px}
+.tach{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;position:relative}
+.tach i{display:block;height:100%;width:0;background:var(--accent)}
+.tach::after{content:"";position:absolute;right:0;top:0;bottom:0;width:12%;background:rgba(255,95,74,.45)}
+#rpmv{font-family:var(--display);font-size:13px;font-variant-numeric:tabular-nums;min-width:5ch;text-align:right}
+#gear{pointer-events:auto;cursor:pointer;background:transparent;color:inherit}
+.shiftbtn{display:none}
+body.touch.manual .shiftbtn{display:block}
+#bUp{left:calc(var(--gl) + 172px);bottom:calc(var(--gb) + 84px)}
+#bDn{left:calc(var(--gl) + 172px);bottom:calc(var(--gb) + 14px)}
 .meters{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center}
 .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--warn);border-radius:3px}
@@ -192,7 +202,8 @@ body.touch .keys{display:none}
   <div id="cluster" class="panel">
     <div class="vrow"><span id="vehName">Ridgeback 4x4</span><span id="surface">Asphalt</span></div>
     <div id="driveinfo" style="display:flex;flex-direction:column;gap:8px">
-      <div class="speedrow"><b id="speed">0</b><span class="lbl">km/h</span><span id="gear">N</span></div>
+      <div class="speedrow"><b id="speed">0</b><span class="lbl">km/h</span><button id="gear" title="Tap to switch manual / automatic (M)">N</button></div>
+      <div class="tachrow"><div class="tach"><i id="tach"></i></div><b id="rpmv">0</b><span class="lbl" id="gbx">Auto</span></div>
       <div class="modes">
         <button class="mode" data-mode="2H">2H</button>
         <button class="mode" data-mode="4H">4H</button>
@@ -201,6 +212,7 @@ body.touch .keys{display:none}
       <div class="meters">
         <span class="lbl">Damage</span><div class="bar"><i id="dmg"></i></div><b id="dmgv">0%</b>
         <span class="lbl">Grade</span><div class="bar"><i id="gradeBar" style="background:var(--accent)"></i></div><b id="grade">0%</b>
+        <span class="lbl" id="boostL" hidden>Boost</span><div class="bar" id="boostB" hidden><i id="boost" style="background:#7fc8ff"></i></div><b id="boostV" hidden>0 psi</b>
       </div>
     </div>
     <div id="footinfo" hidden>Walk up to any parked vehicle to drive it.</div>
@@ -214,6 +226,8 @@ body.touch .keys{display:none}
   <div id="stick"><div id="knob"></div></div>
   <button class="rbtn" id="bDoor">USE</button>
   <button class="rbtn" id="bHand">HAND</button>
+  <button class="rbtn shiftbtn" id="bUp">UP</button>
+  <button class="rbtn shiftbtn" id="bDn">DN</button>
   <button class="pedal" id="pBrake">BRAKE</button>
   <button class="pedal" id="pGas">GAS</button>
 </div>
@@ -234,7 +248,8 @@ body.touch .keys{display:none}
       <div><kbd>A</kbd><kbd>D</kbd> Steer</div>
       <div><kbd>E</kbd> Get in / out · talk to friend</div>
       <div><kbd>Space</kbd> Handbrake · jump on foot</div>
-      <div><kbd>F</kbd> 2H / 4H / 4L</div>
+      <div><kbd>F</kbd> 2H / 4H / 4L · <kbd>M</kbd> manual</div>
+      <div><kbd>X</kbd><kbd>Z</kbd> Shift up / down (manual)</div>
       <div><kbd>Shift</kbd> Run on foot</div>
       <div><kbd>L</kbd> Headlights · <kbd>C</kbd> Camera</div>
       <div><kbd>R</kbd> Recover · <kbd>T</kbd> +1 hour</div>
@@ -445,7 +460,7 @@ renderer.shadowMap.type = T.PCFSoftShadowMap;
 $('game').appendChild(renderer.domElement);
 const scene = new T.Scene();
 scene.fog = new T.Fog(0x9cc9e6, 120, 560);
-const camera = new T.PerspectiveCamera(60, 1, 0.1, 1600);
+const camera = new T.PerspectiveCamera(60, 1, 0.05, 1600);
 const hemi = new T.HemisphereLight(0xcfe6ff, 0x4a5a3a, 0.6); scene.add(hemi);
 const sun = new T.DirectionalLight(0xffffff, 0.9);
 sun.castShadow = true;
@@ -730,13 +745,31 @@ const stars = (() => {
 })();
 
 /* ------------------------------------------------------------------ vehicles */
+// a box whose top face is narrower/shorter/shifted: sloped windshields, noses, bubble cabins
+function frustum(wb, wt, h, lb, lt, zt, mat, x, y, z, parent) {
+  const g = new T.BoxGeometry(1, 1, 1), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const top = p.getY(i) > 0;
+    p.setXYZ(i, p.getX(i) * (top ? wt : wb), top ? h : 0, p.getZ(i) * (top ? lt : lb) + (top ? zt : 0));
+  }
+  g.computeVertexNormals();
+  return mesh(g, mat, x, y, z, parent);
+}
+// a square bar between two points (pillars, wing posts, pipes)
+function beam(a, b, t, mat, parent) {
+  const A = new T.Vector3(...a), B = new T.Vector3(...b);
+  const m = mesh(new T.BoxGeometry(t, t, A.distanceTo(B)), mat, (A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2, parent);
+  m.lookAt(B); return m;
+}
 const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
-  coupe: { name: "Coupe '87", kind: 'E30-style sports coupe', mesh: true, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 205, low: 0, accel: 7.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
+  coupe: { name: "Coupe '87", kind: 'E30-style sports coupe · 5-speed manual', mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 205, low: 0, accel: 7.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
+  supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 430, low: 0, accel: 19, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 4.6, turbo: { spool: 0.75, psi: 45 }, gripK: 1.9, dragK: 0.3, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
-const ORDER = ['ridgeback', 'coupe', 'pickup', 'hauler'];
+const ORDER = ['ridgeback', 'coupe', 'supra', 'p50', 'pickup', 'hauler'];
 
 const BUILD = {
   ridgeback(b, s, m) {
@@ -765,44 +798,127 @@ const BUILD = {
     return { front: L / 2, lightY: y0 + 0.52, lightX: W / 2 - 0.27, hood: [y0 + 1.1, L * 0.36], seat: [W * 0.22, y0 + 0.5, 0.15, 0.78] };
   },
   coupe(b, s, m) {
-    // E30-style sports coupe: boxy two-door, flared arches, rear wing, quad round lamps
-    const W = s.wid, L = s.len, y0 = s.wr + 0.02, gz = -0.15;
-    const trim = M(0x26282c), plate = M(0xe9e9e4), fog = m.light;
-    box(W, 0.46, L, m.paint, 0, y0 + 0.23, 0, b);
-    box(W + 0.012, 0.018, L * 0.9, trim, 0, y0 + 0.4, 0, b);                     // shoulder crease
-    for (const z of [s.wb / 2, -s.wb / 2]) box(W + 0.09, 0.22, s.wr * 2.55, m.paint, 0, s.wr * 2 - 0.01, z, b); // box flares
-    box(W + 0.06, 0.1, s.wb - s.wr * 2.6, m.black, 0, y0 + 0.05, 0, b);          // side skirts
-    // greenhouse
-    box(W * 0.88, 0.4, L * 0.44, m.glass, 0, y0 + 0.66, gz, b);
-    box(W * 0.88, 0.05, L * 0.38, m.paint, 0, y0 + 0.885, gz - 0.06, b);
-    for (const x of [-1, 1]) {
-      box(0.07, 0.4, 0.1, m.paint, x * W * 0.43, y0 + 0.66, gz + L * 0.22 - 0.05, b);   // A pillar
-      box(0.07, 0.4, 0.09, m.black, x * W * 0.44, y0 + 0.66, gz - 0.32, b);            // B pillar (2-door)
-      box(0.08, 0.4, 0.42, m.paint, x * W * 0.43, y0 + 0.66, gz - L * 0.22 + 0.2, b);  // C pillar
-      box(0.012, 0.42, 0.012, m.black, x * (W / 2 + 0.004), y0 + 0.24, 0.98, b);        // door gaps
-      box(0.012, 0.42, 0.012, m.black, x * (W / 2 + 0.004), y0 + 0.24, -0.47, b);
-      box(0.02, 0.03, 0.12, m.black, x * (W / 2 + 0.01), y0 + 0.37, -0.3, b);          // handle
-      box(0.12, 0.08, 0.12, m.black, x * (W / 2 + 0.05), y0 + 0.52, gz + L * 0.22 - 0.12, b); // mirror
+    // E30-style coupe: tall slab sides (about two thirds body, one third glass), open wheel arches,
+    // thin pillars, flat hood, upright nose with quad lamps, raised trunk wing
+    const W = s.wid, L = s.len, sill = 0.17, belt = 0.92, roofY = 1.37, aT = s.wr * 2 + 0.06, aR = s.wr + 0.1;
+    const trim = M(0x26282c), plate = M(0xe9e9e4), amber = M(0xe39a2a, { emissive: 0x2a1500 });
+    const zF = s.wb / 2, zB = -s.wb / 2;
+    for (const [z1, z0] of [[L / 2, zF + aR], [zF - aR, zB + aR], [zB - aR, -L / 2]]) box(W, aT - sill, z1 - z0, m.paint, 0, (sill + aT) / 2, (z1 + z0) / 2, b);
+    box(W, belt - aT, L, m.paint, 0, (aT + belt) / 2, 0, b);
+    for (const z of [zF, zB]) {
+      box(W - 0.5, aT - sill, aR * 2, m.black, 0, (sill + aT) / 2, z, b);              // wheel tub
+      box(W + 0.07, 0.09, aR * 2 + 0.08, m.paint, 0, aT + 0.02, z, b);                 // arch flare lip
     }
-    // nose: black lamp band, quad round headlights, twin grille, bumper, lip with fogs
-    box(W * 0.97, 0.19, 0.04, m.black, 0, y0 + 0.36, L / 2 + 0.005, b);
-    const hl = new T.CylinderGeometry(0.075, 0.075, 0.04, 12); hl.rotateX(Math.PI / 2);
-    for (const x of [-0.68, -0.49, 0.49, 0.68]) mesh(hl, m.light, x, y0 + 0.36, L / 2 + 0.03, b, false);
-    for (const x of [-0.095, 0.095]) { box(0.15, 0.18, 0.03, m.chrome, x, y0 + 0.37, L / 2 + 0.02, b); box(0.11, 0.14, 0.03, m.black, x, y0 + 0.37, L / 2 + 0.03, b); }
-    box(W * 1.01, 0.13, 0.1, m.paint, 0, y0 + 0.16, L / 2 + 0.03, b);
-    box(W * 0.99, 0.13, 0.14, m.black, 0, y0 + 0.03, L / 2 + 0.02, b);
-    for (const x of [-0.56, 0.56]) box(0.16, 0.06, 0.03, fog, x, y0 + 0.04, L / 2 + 0.1, b);
-    box(0.4, 0.1, 0.02, plate, 0, y0 + 0.16, L / 2 + 0.09, b);
-    // tail: wide lamps, bumper, plate, raised wing
-    box(W * 0.95, 0.15, 0.04, m.black, 0, y0 + 0.36, -L / 2 - 0.005, b);
-    for (const x of [-1, 1]) box(W * 0.3, 0.13, 0.045, m.tail, x * W * 0.31, y0 + 0.36, -L / 2 - 0.01, b);
-    box(W * 1.01, 0.15, 0.1, m.paint, 0, y0 + 0.12, -L / 2 - 0.03, b);
-    box(W * 0.9, 0.06, 0.08, m.black, 0, y0 + 0.02, -L / 2 - 0.04, b);
-    box(0.4, 0.1, 0.02, plate, 0, y0 + 0.24, -L / 2 - 0.035, b);
-    for (const x of [-0.58, 0.58]) box(0.05, 0.11, 0.08, m.black, x, y0 + 0.51, -L / 2 + 0.24, b);
-    box(W * 0.86, 0.035, 0.24, m.paint, 0, y0 + 0.575, -L / 2 + 0.22, b).rotation.x = -0.06;
-    const ex = mesh(new T.CylinderGeometry(0.04, 0.04, 0.12, 8), m.chrome, -0.5, y0 + 0.02, -L / 2 - 0.08, b, false); ex.rotation.x = Math.PI / 2;
-    return { front: L / 2, lightY: y0 + 0.36, lightX: 0.58, hood: [y0 + 0.75, L * 0.3], seat: [W * 0.21, y0 + 0.2, 0.0, 0.58] };
+    const mid = (zF - aR) - (zB + aR);
+    box(W + 0.05, 0.1, mid, m.black, 0, sill + 0.05, (zF + zB) / 2, b);               // side skirt
+    box(W + 0.02, 0.045, mid, m.black, 0, 0.46, (zF + zB) / 2, b);                    // door rubber strip
+    box(W + 0.012, 0.016, L * 0.92, trim, 0, belt - 0.07, 0, b);                     // shoulder crease
+    const gh = roofY - belt, gb = W * 0.9, gt = W * 0.82, lb = 2.15, lt = 1.2, zc = -0.28, zt = -0.07;
+    frustum(gb, gt, gh, lb, lt, zt, m.glass, 0, belt, zc, b);
+    frustum(gt + 0.02, gt - 0.04, 0.05, lt + 0.04, lt - 0.06, 0, m.paint, 0, roofY, zc + zt, b);
+    box(gb + 0.012, 0.035, lb, m.black, 0, belt + 0.015, zc, b);
+    const zf0 = zc + lb / 2, zf1 = zc + zt + lt / 2, zr0 = zc - lb / 2, zr1 = zc + zt - lt / 2;
+    for (const x of [-1, 1]) {
+      beam([x * gb / 2, belt, zf0], [x * gt / 2, roofY, zf1], 0.07, m.paint, b);
+      beam([x * gb / 2, belt, zr0], [x * gt / 2, roofY, zr1], 0.1, m.paint, b);
+      beam([x * gb / 2, belt, zr0 + 0.3], [x * gt / 2, roofY, zr1 + 0.16], 0.08, m.paint, b);
+      beam([x * (gb / 2 - 0.005), belt, -0.5], [x * (gt / 2 + 0.01), roofY, -0.5], 0.05, m.black, b);
+      for (const z of [0.78, -0.55]) box(0.012, belt - sill - 0.12, 0.012, m.black, x * (W / 2 + 0.004), (belt + sill) / 2 + 0.03, z, b);
+      box(0.02, 0.03, 0.13, m.black, x * (W / 2 + 0.01), belt - 0.13, -0.4, b);
+      box(0.12, 0.08, 0.13, m.black, x * (W / 2 + 0.05), belt + 0.07, 0.68, b);
+      box(0.012, 0.05, 0.12, amber, x * (W / 2 + 0.006), 0.62, L / 2 - 0.16, b);
+    }
+    box(W * 0.97, 0.2, 0.04, m.black, 0, 0.72, L / 2 + 0.005, b);
+    const hl = new T.CylinderGeometry(0.085, 0.085, 0.04, 14); hl.rotateX(Math.PI / 2);
+    for (const x of [-0.68, -0.48, 0.48, 0.68]) mesh(hl, m.light, x, 0.72, L / 2 + 0.03, b, false);
+    for (const x of [-0.095, 0.095]) { box(0.15, 0.2, 0.03, m.chrome, x, 0.73, L / 2 + 0.02, b); box(0.11, 0.16, 0.03, m.black, x, 0.73, L / 2 + 0.03, b); }
+    box(W * 1.01, 0.15, 0.1, m.paint, 0, 0.5, L / 2 + 0.03, b);
+    box(W * 1.02, 0.04, 0.11, m.black, 0, 0.5, L / 2 + 0.035, b);
+    box(W * 0.99, 0.17, 0.15, m.black, 0, sill + 0.1, L / 2 + 0.02, b);
+    for (const x of [-0.56, 0.56]) box(0.16, 0.06, 0.03, m.light, x, sill + 0.11, L / 2 + 0.1, b);
+    box(0.4, 0.1, 0.02, plate, 0, 0.39, L / 2 + 0.09, b);
+    box(W * 0.95, 0.17, 0.04, m.black, 0, 0.73, -L / 2 - 0.005, b);
+    for (const x of [-1, 1]) box(W * 0.3, 0.15, 0.045, m.tail, x * W * 0.31, 0.73, -L / 2 - 0.01, b);
+    box(W * 1.01, 0.15, 0.1, m.paint, 0, 0.48, -L / 2 - 0.03, b);
+    box(W * 1.02, 0.04, 0.11, m.black, 0, 0.48, -L / 2 - 0.035, b);
+    box(W * 0.9, 0.12, 0.08, m.black, 0, sill + 0.06, -L / 2 - 0.04, b);
+    box(0.4, 0.1, 0.02, plate, 0, 0.6, -L / 2 - 0.025, b);
+    for (const x of [-0.58, 0.58]) box(0.05, 0.11, 0.08, m.black, x, belt + 0.05, -L / 2 + 0.24, b);
+    box(W * 0.86, 0.035, 0.24, m.paint, 0, belt + 0.115, -L / 2 + 0.22, b).rotation.x = -0.06;
+    const ex = mesh(new T.CylinderGeometry(0.04, 0.04, 0.12, 8), m.chrome, -0.5, sill + 0.03, -L / 2 - 0.08, b, false); ex.rotation.x = Math.PI / 2;
+    return { front: L / 2, lightY: 0.72, lightX: 0.58, hood: [1.1, 0.9], seat: [W * 0.21, 0.5, 0.0, 0.72] };
+  },
+  supra(b, s, m) {
+    // Supra-style big-turbo coupe: long rounded nose, fastback glass, hoop wing, round tail lamps
+    const W = s.wid, L = s.len, y0 = s.wr - 0.02, base = y0 + 0.42, gh = 0.42;
+    box(W, 0.42, L - 0.9, m.paint, 0, y0 + 0.21, -0.45, b);
+    frustum(W, W * 0.97, 0.42, 0.9, 0.5, -0.2, m.paint, 0, y0, L / 2 - 0.45, b);
+    for (const z of [s.wb / 2, -s.wb / 2]) box(W + 0.08, 0.2, s.wr * 2.5, m.paint, 0, s.wr * 2 - 0.03, z, b);
+    box(W + 0.04, 0.09, s.wb - s.wr * 2.5, m.black, 0, y0 + 0.04, 0, b);
+    const gb = W * 0.86, gt = W * 0.74, lb = 2.6, lt = 1.0, zc = -0.35, zt = -0.25;
+    frustum(gb, gt, gh, lb, lt, zt, m.glass, 0, base, zc, b);
+    frustum(gt + 0.02, gt - 0.06, 0.04, lt + 0.04, lt - 0.1, 0, m.paint, 0, base + gh, zc + zt, b);
+    box(gb + 0.012, 0.03, lb, m.black, 0, base + 0.015, zc, b);
+    const zf0 = zc + lb / 2, zf1 = zc + zt + lt / 2, zr0 = zc - lb / 2, zr1 = zc + zt - lt / 2;
+    for (const x of [-1, 1]) {
+      beam([x * gb / 2, base, zf0], [x * gt / 2, base + gh, zf1], 0.07, m.paint, b);
+      beam([x * gb / 2, base, zr0], [x * gt / 2, base + gh, zr1], 0.08, m.paint, b);
+      beam([x * (gb / 2 - 0.005), base, -0.55], [x * (gt / 2 + 0.01), base + gh, -0.62], 0.05, m.black, b);
+      box(0.02, 0.13, 0.42, m.black, x * (W / 2 + 0.006), y0 + 0.27, -0.95, b);          // side intake
+      box(0.12, 0.07, 0.14, m.paint, x * (W / 2 + 0.05), base + 0.06, 0.78, b);           // mirror
+      beam([x * 0.74, base - 0.02, -L / 2 + 0.38], [x * 0.74, base + 0.3, -L / 2 + 0.12], 0.06, m.paint, b); // hoop wing posts
+      box(0.04, 0.12, 0.32, m.paint, x * 0.86, base + 0.33, -L / 2 + 0.1, b);
+      box(0.4, 0.07, 0.16, m.light, x * 0.6, y0 + 0.35, L / 2 - 0.33, b).rotation.x = -0.55; // slim headlights
+      box(0.12, 0.06, 0.03, m.light, x * 0.64, y0 + 0.12, L / 2 + 0.005, b);               // fogs
+      for (const dx of [0.45, 0.66]) { const t = mesh(new T.CylinderGeometry(0.075, 0.075, 0.04, 12), m.tail, x * dx, y0 + 0.32, -L / 2 - 0.02, b, false); t.rotation.x = Math.PI / 2; }
+    }
+    box(W * 0.98, 0.04, 0.32, m.paint, 0, base + 0.36, -L / 2 + 0.1, b);                  // wing blade
+    box(W * 0.95, 0.17, 0.04, m.black, 0, y0 + 0.32, -L / 2 - 0.005, b);
+    box(W * 0.58, 0.15, 0.04, m.black, 0, y0 + 0.13, L / 2 + 0.005, b);                  // big lower intake
+    box(0.55, 0.02, 0.3, m.black, 0, y0 + 0.425, 0.95, b);                                 // hood vent
+    box(0.4, 0.1, 0.02, M(0xe9e9e4), 0, y0 + 0.16, -L / 2 - 0.02, b);
+    const ex = mesh(new T.CylinderGeometry(0.075, 0.075, 0.16, 10), m.chrome, -0.45, y0 + 0.04, -L / 2 - 0.06, b, false); ex.rotation.x = Math.PI / 2;
+    return { front: L / 2 - 0.2, lightY: y0 + 0.35, lightX: 0.6, hood: [y0 + 0.75, 0.9], seat: [W * 0.21, y0 + 0.18, -0.3, 0.56] };
+  },
+  p50(b, s, m) {
+    // P50-style microcar: tall rounded single-seater, big framed windows, one chrome headlight,
+    // three small wheels, side exhaust... plus a comically huge turbo out back
+    const W = s.wid, L = s.len, y0 = s.wr + 0.09, sh = y0 + 0.36, wl = sh + 0.1, top = 1.13, rf = 1.2;
+    const trim = M(0xc3c6ca), steel = M(0xb7bcc2), hot = M(0x8a5a3a);
+    frustum(W * 0.86, W, sh - y0, L * 0.84, L, 0.02, m.paint, 0, y0, 0, b);
+    box(W + 0.03, 0.025, L + 0.03, trim, 0, sh, 0.02, b);
+    frustum(W, W * 0.95, wl - sh, L, L * 0.8, -0.04, m.paint, 0, sh, 0.02, b);
+    frustum(W * 0.95, W * 0.9, top - wl, L * 0.8, L * 0.62, -0.06, m.glass, 0, wl, -0.02, b);
+    frustum(W * 0.92, W * 0.8, rf - top, L * 0.64, L * 0.5, -0.02, m.paint, 0, top, -0.08, b);
+    for (const x of [-1, 1]) {
+      beam([x * W * 0.47, wl, -0.02 + L * 0.4], [x * W * 0.45, top, -0.08 + L * 0.31], 0.07, m.paint, b);
+      beam([x * W * 0.47, wl, -0.02 - L * 0.4], [x * W * 0.45, top, -0.08 - L * 0.31], 0.09, m.paint, b);
+      beam([x * W * 0.47, wl, -0.2], [x * W * 0.45, top, -0.2], 0.05, m.paint, b);
+      box(0.03, 0.03, 0.03, trim, x * 0.36, sh - 0.12, L / 2 - 0.01, b);
+    }
+    beam([W * 0.47, wl, -0.02 + L * 0.4], [-W * 0.47, wl, -0.02 + L * 0.4], 0.05, m.paint, b);   // windshield sill
+    for (const z of [0.3, -0.2]) box(0.012, sh - y0 + 0.05, 0.012, m.black, W * 0.5 + 0.004, (y0 + sh) / 2 + 0.03, z, b); // door, left side
+    beam([0.05, wl + 0.05, L * 0.39], [-0.25, wl + 0.3, L * 0.33], 0.02, m.black, b);            // wiper
+    const ring = mesh(new T.CylinderGeometry(0.105, 0.105, 0.05, 14), m.chrome, -0.1, sh - 0.08, L / 2 + 0.0, b, false); ring.rotation.x = Math.PI / 2;
+    const lamp = mesh(new T.CylinderGeometry(0.085, 0.085, 0.05, 14), m.light, -0.1, sh - 0.08, L / 2 + 0.015, b, false); lamp.rotation.x = Math.PI / 2;
+    const pcv = document.createElement('canvas'); pcv.width = 256; pcv.height = 64; const pc = pcv.getContext('2d');
+    pc.fillStyle = '#111'; pc.fillRect(0, 0, 256, 64); pc.fillStyle = '#eee'; pc.font = '700 40px Oxanium, sans-serif'; pc.textAlign = 'center'; pc.textBaseline = 'middle'; pc.fillText('TRB 50', 128, 34);
+    box(0.34, 0.085, 0.02, new T.MeshLambertMaterial({ map: new T.CanvasTexture(pcv) }), 0, y0 + 0.1, L * 0.42 + 0.03, b);
+    box(W * 0.85, 0.03, 0.04, m.chrome, 0, y0 + 0.02, L * 0.42 + 0.02, b);
+    box(W * 0.85, 0.03, 0.04, m.chrome, 0, y0 + 0.02, -L * 0.42 - 0.02, b);
+    for (const x of [-0.3, 0.3]) box(0.08, 0.06, 0.03, m.tail, x, sh - 0.1, -L / 2 - 0.0, b);
+    const sx = mesh(new T.CylinderGeometry(0.035, 0.035, 0.75, 8), m.chrome, -(W / 2 - 0.08), y0 - 0.04, -0.2, b, false); sx.rotation.x = Math.PI / 2;
+    // the big turbo
+    const snail = mesh(new T.CylinderGeometry(0.24, 0.24, 0.18, 14), steel, 0.12, sh, -L / 2 - 0.2, b); snail.rotation.z = Math.PI / 2;
+    const inlet = mesh(new T.CylinderGeometry(0.17, 0.12, 0.2, 12), steel, 0.32, sh, -L / 2 - 0.2, b); inlet.rotation.z = Math.PI / 2;
+    mesh(new T.CylinderGeometry(0.13, 0.13, 0.14, 12), hot, -0.06, sh, -L / 2 - 0.2, b).rotation.z = Math.PI / 2;
+    beam([0.12, sh + 0.2, -L / 2 - 0.2], [0.12, rf - 0.02, -L * 0.28], 0.09, steel, b);
+    const pipe = mesh(new T.CylinderGeometry(0.09, 0.07, 0.55, 10), m.chrome, -0.22, y0 + 0.08, -L / 2 - 0.22, b, false); pipe.rotation.x = Math.PI / 2;
+    const flame = mesh(new T.ConeGeometry(0.11, 0.7, 8), new T.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.85 }), -0.22, y0 + 0.08, -L / 2 - 0.85, b, false);
+    flame.rotation.x = -Math.PI / 2; flame.visible = false;
+    for (const x of [-0.42, 0.42]) box(0.04, 0.16, 0.1, m.black, x, rf + 0.08, -L * 0.22, b);
+    box(W * 1.3, 0.04, 0.28, m.black, 0, rf + 0.17, -L * 0.24, b);
+    return { front: L / 2, lightY: sh - 0.08, lightX: 0.05, hood: [1.0, 0.3], seat: [0, y0 + 0.3, -0.05, 0.48], oneSeat: true, flame };
   },
   pickup(b, s, m) {
     const W = s.wid, L = s.len, y0 = s.wr + 0.15, front = L / 2;
@@ -850,6 +966,7 @@ const BUILD = {
 };
 
 const vehicles = [];
+const GEARS = [0.28, 0.45, 0.63, 0.82, 1.0]; // top speed of each gear as a share of the car's top speed
 const tireMat = M(0x1d1f21), rimMat = M(0x8e9399);
 function makeVehicle(key, color) {
   const s = SPECS[key], g = new T.Group(), body = new T.Group(); g.add(body);
@@ -876,17 +993,19 @@ function makeVehicle(key, color) {
       for (const sx of [-1, 1]) mesh(meshParts.lip, meshParts.polish, sx * s.ww / 2, 0, 0, w, false);
       for (let k = 0; k < 8; k++) mesh(meshParts.spoke, meshParts.silver, 0, 0, 0, w, false).rotation.x = k * Math.PI / 8;
       mesh(meshParts.cap, meshParts.polish, 0, 0, 0, w, false);
-    } else { mesh(hg, rimMat, 0, 0, 0, w, false); mesh(sg, rimMat, 0, 0, 0, w, false); }
+    } else { const rm = s.rimColor ? M(s.rimColor) : s.chromeRim ? mats.chrome : rimMat; mesh(hg, rm, 0, 0, 0, w, false); mesh(sg, rm, 0, 0, 0, w, false); }
     g.add(pivot); wheels.push({ pivot, mesh: w, front, z });
   };
   const hw = s.track / 2, hb = s.wb / 2;
-  addWheel(hw, hb, true); addWheel(-hw, hb, true); addWheel(hw, -hb, false); addWheel(-hw, -hb, false);
+  if (s.three) { addWheel(hw, hb, true); addWheel(-hw, hb, true); addWheel(0, -hb, false); }
+  else { addWheel(hw, hb, true); addWheel(-hw, hb, true); addWheel(hw, -hb, false); addWheel(-hw, -hb, false); }
   if (key === 'hauler') { addWheel(hw, -hb - 1.25, false); addWheel(-hw, -hb - 1.25, false); }
   const v = {
     key, s, g, body, wheels, mats, info,
     x: 0, z: 0, y: 0, yaw: 0, pitch: 0, roll: 0, speed: 0, vy: 0, air: false, steer: 0,
     mode: s.awd ? '4H' : '2H', damage: 0, lights: false, ai: null, wheelsDown: 4, surf: 0, slip: false, brakeOn: false,
-    tPitch: 0, tRoll: 0, gY: 0, art: [0, 0, 0, 0], belly: 0, flipped: 0, latAcc: 0, accel: 0, rpm: 0, gear: 'N',
+    tPitch: 0, tRoll: 0, gY: 0, art: [0, 0, 0, 0], belly: 0, flipped: 0, latAcc: 0, accel: 0, rpm: 0, rpmS: 0.12, gear: 'N', boost: 0, throttle: 0, bovReady: false,
+    manual: key === 'coupe', mg: 1, shiftT: 0, rpmM: 0.12, limiter: false,
   };
   scene.add(g); vehicles.push(v); return v;
 }
@@ -961,18 +1080,41 @@ function driveVehicle(v, inp, dt) {
   v.surf = surfaceAt(v.x, v.z);
   const sg = SURF[v.surf].grip * (v.surf === 0 ? 1 : s.off);
   const four = s.awd && v.mode !== '2H', low = v.mode === '4L';
-  const traction = sg * (four ? 1 : 0.6) * 9.8 * Math.cos(v.pitch) * (v.wheelsDown < 4 ? 0.8 : 1);
+  const gk = s.gripK || 1;
+  const traction = sg * gk * (four ? 1 : 0.6) * 9.8 * Math.cos(v.pitch) * (v.wheelsDown < 4 ? 0.8 : 1);
+  v.throttle = inp.gas ? 1 : 0;
+  if (s.turbo) { // boost builds with revs and lags behind the throttle
+    const tgt = inp.gas && !(v.y - v.gY > 0.3) ? clamp((v.rpm - 0.3) / 0.45, 0, 1) : 0;
+    v.boost += (tgt - v.boost) * Math.min(1, dt * (tgt > v.boost ? s.turbo.spool : 6));
+    if (v.boost > 0.5) v.bovReady = true;
+    if (!inp.gas && v.bovReady) { v.bovReady = false; if (v === player.vehicle) sfx.bov(v.boost); }
+  }
   const dmgK = 1 - v.damage / 100 * 0.45;
   const maxV = (low ? s.low : s.max) / 3.6 * dmgK, revMax = (low ? 7 : 22) / 3.6;
   v.slip = false; v.brakeOn = false;
   let a = 0, decel = 0, drive = 0;
   if (!lowAir) {
-    const eng = s.accel * (low ? 2.4 : 1) * dmgK;
-    if (inp.gas) { if (v.speed < -0.3) { decel = 9; v.brakeOn = true; } else drive = eng * Math.max(0, 1 - (v.speed / maxV) ** 2); }
-    if (inp.brake) { if (v.speed > 0.3) { decel = Math.min(9.5, traction * 1.15 + 1); v.brakeOn = true; } else if (!inp.gas) drive = -eng * 0.7 * Math.max(0, 1 - (-v.speed / revMax) ** 2); }
+    const eng = s.accel * (low ? 2.4 : 1) * dmgK * (s.turbo ? 0.45 + 0.55 * v.boost : 1);
+    v.limiter = false;
+    if (v.manual && !low) { // manual: you pick the gear; each gear has its own speed range and pull
+      v.shiftT = Math.max(0, v.shiftT - dt);
+      const g = v.mg, clutch = v.shiftT > 0;
+      const r = g > 0 ? v.speed / (maxV * GEARS[g - 1]) : g < 0 ? -v.speed / revMax : 0;
+      if (inp.gas && g !== 0 && !clutch) {
+        if (r >= 1) v.limiter = true;
+        else drive = (g > 0 ? 1 : -1) * eng * (g > 0 ? 1.5 * Math.pow(GEARS[0] / GEARS[g - 1], 0.75) : 1.1) * (0.75 + 0.35 * Math.sin(Math.PI * clamp(r, 0.2, 1)));
+      }
+      if (inp.brake && Math.abs(v.speed) > 0.3) { decel = Math.min(9.5, traction * 1.15 + 1); v.brakeOn = true; }
+      if (!inp.gas && g !== 0 && !clutch) decel = Math.max(decel, 0.35 + Math.max(0, r) * 1.4 / Math.abs(g)); // engine braking
+      v.rpmM = g === 0 || clutch ? (inp.gas ? 1.0 : 0.12) : clamp(Math.max(Math.abs(r), inp.gas && Math.abs(v.speed) < 3 ? 0.4 : 0.12), 0.12, 1.02);
+      if (g === 0 && inp.gas && v.rpmS > 0.97) v.limiter = true;
+    } else {
+      if (inp.gas) { if (v.speed < -0.3) { decel = 9; v.brakeOn = true; } else drive = eng * Math.max(0, 1 - (v.speed / maxV) ** 2); }
+      if (inp.brake) { if (v.speed > 0.3) { decel = Math.min(9.5, traction * 1.15 + 1); v.brakeOn = true; } else if (!inp.gas) drive = -eng * 0.7 * Math.max(0, 1 - (-v.speed / revMax) ** 2); }
+    }
     if (Math.abs(drive) > traction) { v.slip = true; drive = Math.sign(drive) * traction * 0.85; }
     a += drive - 9.8 * Math.sin(v.pitch);
-    if (Math.abs(v.speed) > 0.05) a -= Math.sign(v.speed) * SURF[v.surf].roll + 0.00045 * v.speed * Math.abs(v.speed);
+    if (Math.abs(v.speed) > 0.05) a -= Math.sign(v.speed) * SURF[v.surf].roll + 0.00045 * (s.dragK || 1) * v.speed * Math.abs(v.speed);
     if (inp.hand) { decel = Math.max(decel, 6.5); v.brakeOn = true; }
     if (!inp.gas && !inp.brake) decel = Math.max(decel, low ? traction : 0.35);
     if (v.belly > s.clear) { decel = Math.max(decel, 4 + (v.belly - s.clear) * 30); if (Math.abs(v.speed) > 2) v.damage = Math.min(100, v.damage + dt * 4); }
@@ -986,7 +1128,7 @@ function driveVehicle(v, inp, dt) {
   v.steer += (steerT - v.steer) * Math.min(1, dt * 7);
   if (!lowAir) {
     let yr = v.speed * Math.tan(v.steer) / s.wb;
-    const latMax = sg * 9.8 * 1.05, lat = Math.abs(v.speed * yr);
+    const latMax = sg * gk * 9.8 * 1.05, lat = Math.abs(v.speed * yr);
     if (lat > latMax) { yr *= latMax / lat; v.slip = true; }
     if (inp.hand && Math.abs(v.speed) > 6) { yr *= 1.55; v.slip = true; }
     v.yaw += yr * dt; v.latAcc = v.speed * yr;
@@ -1024,6 +1166,10 @@ function driveVehicle(v, inp, dt) {
   else if (v.speed < -0.1) { v.gear = 'R'; v.rpm = 0.2 + Math.min(0.7, sp / revMax * 0.7); }
   else { const gi = Math.min(4, Math.floor(sp / top)); v.gear = String(gi + 1); v.rpm = 0.2 + 0.8 * clamp((sp - gi * top) / top, 0, 1) * (gi === 4 ? 1 : 0.9); }
   if (v.slip && inp.gas) v.rpm = Math.min(1, v.rpm + 0.3);
+  if (sp < 1.5 && inp.gas) v.rpm = Math.max(v.rpm, 0.55); // launch revs
+  if (v.manual && !low) { v.gear = v.mg > 0 ? String(v.mg) : v.mg === 0 ? 'N' : 'R'; v.rpm = v.rpmM; }
+  v.rpmS += (v.rpm - v.rpmS) * Math.min(1, dt * 9);
+  if (v.limiter) v.rpmS = 0.97 + Math.random() * 0.05;
 }
 
 function updateAI(v, dt) {
@@ -1054,6 +1200,7 @@ function renderVehicle(v, dt) {
     if (w.front) w.pivot.rotation.y = v.steer;
     w.pivot.position.y = v.s.wr + (i < 4 ? v.art[i] : v.art[2]);
   });
+  if (v.info.flame) { const f = v.info.flame; f.visible = v.throttle > 0 && v.boost > 0.55; if (f.visible) f.scale.set(1, 0.6 + Math.random() * 0.8 * v.boost, 1); }
   v.mats.light.emissive.setHex(v.lights ? 0xfff2c8 : 0x000000);
   v.mats.tail.emissive.setHex(v.brakeOn && (v.ai || v === player.vehicle) ? 0xff2a1a : v.lights ? 0x5a0a06 : 0x000000);
 }
@@ -1264,7 +1411,8 @@ function nearestEnterable() {
 }
 function enterVehicle(v) {
   if (friend.state === 'follow' && Math.hypot(friend.x - player.x, friend.z - player.z) < 16) {
-    friend.state = 'ride'; friend.vehicle = v; friend.lastDmg = v.damage; friend.cool = 6; seatPerson(friend.p, v, -1); say(pick(LINES.board()));
+    if (v.info.oneSeat) { friend.state = 'camp'; friend.seated = false; say('There\'s no room for me in that thing! I\'ll walk back to camp.'); }
+    else { friend.state = 'ride'; friend.vehicle = v; friend.lastDmg = v.damage; friend.cool = 6; seatPerson(friend.p, v, -1); say(pick(LINES.board())); }
   }
   player.onFoot = false; player.vehicle = v; seatPerson(person, v, 1);
   attachBeams(v); if (!v.lights && isNight()) v.lights = true;
@@ -1291,7 +1439,7 @@ const parked = {};
 {
   const yaw = Math.atan2(campDir.ux, campDir.uz);
   ORDER.forEach((k, i) => {
-    const v = makeVehicle(k), p = campPt(9 + (k === 'hauler' ? -2 : 0), -10.5 + i * 7);
+    const v = makeVehicle(k), p = campPt(9 + (k === 'hauler' ? -2 : 0), -17.5 + i * 7);
     v.x = p.x; v.z = p.z; v.yaw = yaw; poseGround(v, true); parked[k] = v;
   });
 }
@@ -1309,7 +1457,8 @@ for (const d of aiDefs) {
 /* ------------------------------------------------------------------ camera */
 const cam = { yaw: 0, pitch: 0.28, dist: 9, free: 0, mode: 0, menuT: 0 };
 const camPos = new T.Vector3(), camLook = new T.Vector3();
-const CAM_MODES = ['Chase', 'Far', 'Hood'];
+const CAM_MODES = ['Chase', 'Far', 'Driver'];
+let baseFov = 60;
 function updateCamera(dt) {
   let tx, ty, tz, h;
   if (state === 'menu') {
@@ -1320,10 +1469,15 @@ function updateCamera(dt) {
     return;
   }
   const v = player.vehicle;
-  if (v && cam.mode === 2) {
-    const p = new T.Vector3(0, v.info.hood[0], v.info.hood[1]).applyEuler(v.g.rotation).add(v.g.position);
-    const f = new T.Vector3(0, 0, 10).applyEuler(v.g.rotation);
-    camera.position.copy(p); camera.lookAt(p.x + f.x, p.y + f.y - 0.6, p.z + f.z);
+  const wantFov = baseFov + (v ? Math.min(20, Math.abs(v.speed) * 0.14) : 0) + (v && cam.mode === 2 ? 10 : 0);
+  if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
+  if (v) person.g.visible = cam.mode !== 2;
+  if (v && cam.mode === 2) { // from the driver's eyes: road ahead over the hood, pillars and roof around you
+    const [sx, sy, sz, sc] = v.info.seat;
+    const eye = new T.Vector3(sx * 0.9, sy + 0.9 * sc, sz + 0.05).applyEuler(v.g.rotation).add(v.g.position);
+    const f = new T.Vector3(0, -0.9, 20).applyEuler(v.g.rotation);
+    camera.position.copy(eye); camera.lookAt(eye.x + f.x, eye.y + f.y, eye.z + f.z);
+    if (shake > 0) { camera.position.y += (Math.random() - 0.5) * shake * 0.2; shake = Math.max(0, shake - dt * 2.5); }
     return;
   }
   if (v) { tx = v.x; ty = v.y; tz = v.z; h = v.key === 'hauler' ? 2.6 : 1.3; }
@@ -1378,44 +1532,96 @@ function updateSky(dt, focus) {
 }
 
 /* ------------------------------------------------------------------ audio */
+// Each engine is synthesized from its firing frequency (rpm / 60 × cylinders / 2): a harmonic-rich
+// exhaust note, a sub-octave for V8 burble, firing-pulsed noise for grit, saturation, and a
+// throttle-opened low-pass. Turbo cars add a spool whistle and a blow-off valve.
+const ENGINES = {
+  ridgeback: { cyl: 6, idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
+  coupe: { cyl: 4, idle: 900, red: 7300, tone: 0.82, rough: 0.38, sub: 0.04, cut: 2900, turbo: 0, vol: 0.95 },        // E30-style high-revving four with intake rasp
+  supra: { cyl: 6, idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
+  p50: { cyl: 2, idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 1, vol: 0.75 },          // screaming two-stroke single
+  pickup: { cyl: 8, idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
+  hauler: { cyl: 6, idle: 600, red: 2600, tone: 1.2, rough: 0.65, sub: 0.2, cut: 650, turbo: 0.35, vol: 1.1 },       // big diesel
+};
 const sfx = (() => {
-  let ctx = null, on = true, osc, osc2, filt, gain, noiseBuf;
+  let ctx = null, on = true, noiseBuf, loopBuf, E = null;
+  const curve = k => { const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; };
+  function wave(p) {
+    const N = 40, re = new Float32Array(N), im = new Float32Array(N);
+    for (let n = 1; n < N; n++) {
+      let a = 1 / Math.pow(n, p.tone);
+      if (p.cyl === 4 && n % 2 === 0) a *= 1.5;          // four-cylinder rasp
+      if (p.cyl === 8 && n % 2 === 1) a *= 1.25;         // V8 lope
+      if (p.cyl === 2) a *= 1 + 0.6 * Math.sin(n * 0.9);  // two-stroke buzz
+      im[n] = a * (n % 3 === 0 ? 0.75 : 1);
+    }
+    return ctx.createPeriodicWave(re, im);
+  }
   function init() {
     if (ctx) return;
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
-      osc = ctx.createOscillator(); osc.type = 'sawtooth';
-      osc2 = ctx.createOscillator(); osc2.type = 'square';
-      filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 600;
-      gain = ctx.createGain(); gain.gain.value = 0;
-      const g2 = ctx.createGain(); g2.gain.value = 0.35;
-      osc.connect(filt); osc2.connect(g2); g2.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
-      osc.start(); osc2.start();
-      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.4, ctx.sampleRate);
+      const sr = ctx.sampleRate;
+      noiseBuf = ctx.createBuffer(1, sr * 0.4, sr);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+      loopBuf = ctx.createBuffer(1, sr * 2, sr);
+      const l = loopBuf.getChannelData(0); for (let i = 0; i < l.length; i++) l[i] = Math.random() * 2 - 1;
+      const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9; lp.connect(master);
+      const shaper = ctx.createWaveShaper(); shaper.curve = curve(2.2); shaper.oversample = '2x'; shaper.connect(lp);
+      const mix = ctx.createGain(); mix.gain.value = 0.6; mix.connect(shaper);
+      const osc = ctx.createOscillator(), oscG = ctx.createGain(); oscG.gain.value = 0.55; osc.connect(oscG); oscG.connect(mix);
+      const sub = ctx.createOscillator(), subG = ctx.createGain(); sub.type = 'sine'; subG.gain.value = 0; sub.connect(subG); subG.connect(mix);
+      const nz = ctx.createBufferSource(); nz.buffer = loopBuf; nz.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+      const am = ctx.createGain(); am.gain.value = 0; nz.connect(bp); bp.connect(am); am.connect(mix);
+      const lfo = ctx.createOscillator(), lfoG = ctx.createGain(); lfo.type = 'square'; lfoG.gain.value = 0; lfo.connect(lfoG); lfoG.connect(am.gain);
+      const fx = ctx.createGain(); fx.connect(ctx.destination);
+      const tw = ctx.createOscillator(), twG = ctx.createGain(); tw.type = 'sine'; twG.gain.value = 0; tw.connect(twG); twG.connect(fx);
+      const nz2 = ctx.createBufferSource(); nz2.buffer = loopBuf; nz2.loop = true;
+      const sq = ctx.createBiquadFilter(); sq.type = 'bandpass'; sq.frequency.value = 1300; sq.Q.value = 5;
+      const sqG = ctx.createGain(); sqG.gain.value = 0; nz2.connect(sq); sq.connect(sqG); sqG.connect(fx);
+      [osc, sub, nz, lfo, tw, nz2].forEach(n => n.start());
+      E = { master, lp, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
     } catch (e) { ctx = null; }
   }
-  function burst(vol, freq, dur) {
+  function burst(vol, freq, dur, type = 'lowpass') {
     if (!ctx || !on) return;
-    const s = ctx.createBufferSource(); s.buffer = noiseBuf; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq;
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
     const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(ctx.destination); s.start(); s.stop(ctx.currentTime + dur);
   }
   return {
     init, get on() { return on; },
-    toggle() { on = !on; if (gain) gain.gain.value = 0; return on; },
+    toggle() { on = !on; if (E) { E.master.gain.value = 0; E.fx.gain.value = on ? 1 : 0; } return on; },
     engine(v) {
-      if (!ctx) return;
-      const t = ctx.currentTime;
-      if (!v || !on) { gain.gain.setTargetAtTime(0, t, 0.1); return; }
-      const base = v.key === 'hauler' ? 26 : v.key === 'coupe' ? 48 : 34;
-      const f = base + v.rpm * base * 3.2;
-      osc.frequency.setTargetAtTime(f, t, 0.05); osc2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
-      filt.frequency.setTargetAtTime(300 + v.rpm * 1400, t, 0.05);
-      gain.gain.setTargetAtTime(0.035 + v.rpm * 0.05, t, 0.08);
+      if (!ctx || !E) return;
+      const t = ctx.currentTime, set = (prm, val, tc = 0.035) => prm.setTargetAtTime(val, t, tc);
+      if (!v || !on) { set(E.master.gain, 0, 0.1); set(E.twG.gain, 0, 0.1); set(E.sqG.gain, 0, 0.1); return; }
+      const p = ENGINES[v.key] || ENGINES.ridgeback;
+      if (E.key !== v.key) { E.osc.setPeriodicWave(wave(p)); E.key = v.key; set(E.subG.gain, p.sub * 0.7, 0.05); }
+      const rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1), rpm = p.idle + (p.red - p.idle) * rn;
+      const f = rpm / 60 * p.cyl / 2, thr = v.throttle || 0;
+      set(E.osc.frequency, f); set(E.sub.frequency, f / 2); set(E.lfo.frequency, f);
+      set(E.bp.frequency, Math.min(9000, f * 3 + 250));
+      const depth = p.rough * 0.45 * (0.45 + thr * 0.55);
+      set(E.am.gain, depth); set(E.lfoG.gain, depth);
+      set(E.lp.frequency, p.cut * (0.55 + rn * 1.3 + thr * 0.9));
+      set(E.master.gain, (0.045 + thr * 0.065 + rn * 0.045) * p.vol * (v.limiter && Math.random() < 0.5 ? 0.25 : 1), v.limiter ? 0.005 : 0.06);
+      const boost = v.boost || 0;
+      set(E.tw.frequency, 1500 + boost * 5800); set(E.twG.gain, p.turbo * boost * boost * 0.03 * (0.3 + thr * 0.7));
+      set(E.sqG.gain, v.slip && Math.abs(v.speed) > 4 && v.surf === 0 ? 0.09 : 0, 0.05);
+    },
+    bov(b) {
+      if (!ctx || !on) return;
+      const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = loopBuf;
+      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1700;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25 * b, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      s.connect(f); f.connect(g); g.connect(ctx.destination); s.start(t, Math.random()); s.stop(t + 0.6);
     },
     thud(i) { burst(Math.min(0.6, i * 0.04), 400, 0.35); },
     step() { burst(0.05, 900, 0.08); },
     door() { burst(0.25, 1400, 0.12); },
+    shiftClick() { burst(0.1, 2600, 0.05, 'highpass'); },
   };
 })();
 
@@ -1435,6 +1641,9 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyT') skipHour();
   if (e.code === 'KeyR') recover();
   if (e.code === 'KeyF') cycleMode();
+  if (e.code === 'KeyX') shift(1);
+  if (e.code === 'KeyZ') shift(-1);
+  if (e.code === 'KeyM') toggleManual();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1483,6 +1692,8 @@ function gatherInput() {
   };
   hold('pGas', 'gas'); hold('pBrake', 'brake'); hold('bHand', 'hand');
   $('bDoor').addEventListener('click', () => state === 'play' && doorAction());
+  $('bUp').addEventListener('click', () => state === 'play' && shift(1));
+  $('bDn').addEventListener('click', () => state === 'play' && shift(-1));
 }
 
 function doorAction() {
@@ -1501,6 +1712,22 @@ function recover() {
   v.flipped = 0; v.speed = 0; v.air = false; poseGround(v, true);
   toast('Vehicle recovered', 1000);
 }
+const ORD = ['', '1st', '2nd', '3rd', '4th', '5th'];
+function shift(d) {
+  const v = player.vehicle; if (!v) return;
+  if (!v.manual) { toast('Automatic gearbox. Press <b>M</b> (or tap the gear) for manual', 1600); return; }
+  if (v.mode === '4L') { toast('4L shifts by itself. Switch to 4H or 2H to shift', 1500); return; }
+  const g = v.mg + d; if (g > 5 || g < -1) return;
+  if (g === -1 && v.speed > 1) { toast('Stop before shifting into reverse', 1200); return; }
+  if (g > 0) { const maxV = v.s.max / 3.6 * (1 - v.damage / 100 * 0.45); if (v.speed / (maxV * GEARS[g - 1]) > 1.08) { toast(`Too fast for ${ORD[g]} gear`, 1000); return; } }
+  v.mg = g; v.shiftT = 0.16; sfx.shiftClick();
+}
+function toggleManual() {
+  const v = player.vehicle; if (!v) return;
+  v.manual = !v.manual;
+  if (v.manual) { const maxV = v.s.max / 3.6; v.mg = 1; while (v.mg < 5 && v.speed / (maxV * GEARS[v.mg - 1]) > 0.85) v.mg++; }
+  toast(v.manual ? '<b>Manual</b>: X shift up · Z shift down' : '<b>Automatic</b> gearbox', 1600);
+}
 function cycleMode() {
   const v = player.vehicle; if (!v) return;
   if (!v.s.awd) { toast(`${v.s.name} is rear-wheel drive only`, 1400); return; }
@@ -1518,6 +1745,7 @@ document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () =
   const v = player.vehicle; if (!v || b.disabled) return; v.mode = b.dataset.mode; updateModesUI();
 }));
 $('tCam').addEventListener('click', cycleCam);
+$('gear').addEventListener('click', () => state === 'play' && toggleManual());
 $('tLights').addEventListener('click', toggleLights);
 $('tTime').addEventListener('click', skipHour);
 $('tSound').addEventListener('click', () => { sfx.init(); $('tSound').classList.toggle('on', sfx.toggle()); });
@@ -1652,6 +1880,14 @@ function updateHUD(dt) {
     $('dmg').style.background = v.damage > 60 ? 'var(--danger)' : 'var(--warn)';
     const gr = Math.round(Math.tan(v.pitch) * 100);
     $('grade').textContent = gr + '%'; $('gradeBar').style.width = Math.min(100, Math.abs(gr) * 1.4) + '%';
+    const ep = ENGINES[v.key] || ENGINES.ridgeback, rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1);
+    $('tach').style.width = Math.round(rn * 100) + '%'; $('tach').style.background = rn > 0.88 ? 'var(--danger)' : 'var(--accent)';
+    $('rpmv').textContent = (Math.round((ep.idle + (ep.red - ep.idle) * rn) / 50) * 50).toLocaleString('en-US');
+    const man = v.manual && v.mode !== '4L';
+    $('gbx').textContent = man ? (isTouch ? 'Manual' : 'Manual · Z X') : 'Auto';
+    document.body.classList.toggle('manual', man);
+    const tb = !!v.s.turbo; for (const id of ['boostL', 'boostB', 'boostV']) $(id).hidden = !tb;
+    if (tb) { $('boost').style.width = Math.round(v.boost * 100) + '%'; $('boostV').textContent = Math.round(v.boost * v.s.turbo.psi) + ' psi'; }
   } else {
     $('vehName').textContent = 'On foot'; $('surface').textContent = SURF[surfaceAt(px, pz)].name; $('surface').style.color = 'var(--accent)';
   }
@@ -1665,7 +1901,7 @@ function updateHUD(dt) {
   else if (v && v.flipped) pr = `<kbd>R</kbd>Recover vehicle`;
   const p = $('prompt'); if (pr !== p.innerHTML) p.innerHTML = pr; p.hidden = !pr;
   const hint = isTouch ? '' : v
-    ? `<kbd>W</kbd><kbd>S</kbd> drive · <kbd>F</kbd> ${v.s.awd ? '4x4 mode' : 'RWD only'} · <kbd>E</kbd> get out`
+    ? `<kbd>W</kbd><kbd>S</kbd> drive · ${v.manual ? '<kbd>X</kbd><kbd>Z</kbd> shift · ' : ''}<kbd>M</kbd> ${v.manual ? 'auto' : 'manual'} · <kbd>E</kbd> get out`
     : `<kbd>WASD</kbd> walk · <kbd>Shift</kbd> run · <kbd>Space</kbd> jump · <kbd>E</kbd> drive`;
   if (hint !== lastHint) { $('hint').innerHTML = hint; $('hint').hidden = !hint; lastHint = hint; }
   // goals
@@ -1728,7 +1964,7 @@ function resume() { state = 'play'; $('menu').hidden = true; $('hud').classList.
 
 /* ------------------------------------------------------------------ loop */
 function resize() {
-  const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 72 : 60; camera.updateProjectionMatrix();
+  const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; baseFov = w < h ? 72 : 60; camera.fov = baseFov; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 
@@ -1763,7 +1999,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>

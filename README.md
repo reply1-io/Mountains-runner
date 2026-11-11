@@ -7,7 +7,9 @@
 - **Ridge trail**: a rocky dirt trail with switchbacks up to Lookout Peak. Use 4L low range to crawl over the rocks.
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
-- **Four vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (glossy black E30-style sports coupe on silver mesh wheels), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
+- **Six vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (black E30-style coupe with a 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a huge turbo, the fastest thing in the game), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
+- **Real-sounding engines**: each engine is synthesized from its cylinder count and rpm: the E30-style four, turbo six, V8, diesels and a two-stroke. Turbo cars whistle and make a blow-off sound when you lift off.
+- **Manual gearbox**: the E30 is manual by default, and any car can switch with M. It has a tachometer and a rev limiter.
 - **On foot**: get out of any vehicle to walk, run, and jump, then get into another vehicle.
 - **Day/night cycle**: working headlights, stars, and a lit campfire at night.
 - **Dashboard**: roll and pitch gauges, wheel contact, altitude, compass, minimap, speed, gear, 2H/4H/4L, damage, and grade.
@@ -21,8 +23,10 @@
 | Space | Handbrake · jump on foot |
 | Shift | Run |
 | F | Cycle 2H / 4H / 4L |
+| M | Manual / automatic gearbox (or tap the gear) |
+| X / Z | Shift up / down (manual) |
 | L | Headlights |
-| C | Camera (chase / far / hood) |
+| C | Camera (chase / far / driver's view) |
 | R | Recover a stuck or rolled vehicle |
 | T | Skip one hour |
 | Esc | Pause |
