@@ -765,7 +765,7 @@ const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
   coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
-  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 430, low: 0, accel: 19, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 4.6, turbo: { spool: 0.75, psi: 45 }, gripK: 1.9, dragK: 0.3, three: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 1,000 km/h · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 1000, low: 0, accel: 44, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 4.6, turbo: { spool: 1.6, psi: 99 }, gripK: 4.2, dragK: 0.04, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
@@ -1491,7 +1491,7 @@ function updateCamera(dt) {
   const dist = cam.dist * (cam.mode === 1 ? 1.8 : 1);
   const want = new T.Vector3(tx - Math.sin(cam.yaw) * dist * Math.cos(cam.pitch), ty + h + dist * Math.sin(cam.pitch), tz - Math.cos(cam.yaw) * dist * Math.cos(cam.pitch));
   want.y = Math.max(want.y, groundH(want.x, want.z) + 0.8);
-  camPos.lerp(want, Math.min(1, dt * 10));
+  camPos.lerp(want, Math.min(1, dt * (10 + (v ? Math.abs(v.speed) * 0.4 : 0))));
   if (camPos.distanceTo(want) > 40) camPos.copy(want);
   camera.position.copy(camPos);
   if (shake > 0) { camera.position.x += (Math.random() - 0.5) * shake * 0.6; camera.position.y += (Math.random() - 0.5) * shake * 0.6; shake = Math.max(0, shake - dt * 2.5); }
@@ -1977,7 +1977,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state === 'play') {
-    const inp = gatherInput(), steps = 2, h = dt / steps;
+    const pv = player.vehicle, inp = gatherInput(), steps = clamp(Math.ceil((pv ? Math.abs(pv.speed) : 0) * dt / 0.5), 2, 16), h = dt / steps;
     for (let i = 0; i < steps; i++) {
       for (const v of vehicles) {
         if (v.ai) updateAI(v, h);
