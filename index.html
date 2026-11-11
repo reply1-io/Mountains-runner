@@ -763,7 +763,7 @@ function beam(a, b, t, mat, parent) {
 }
 const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
-  coupe: { name: "Coupe '87", kind: 'E30-style sports coupe · 5-speed manual', mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 205, low: 0, accel: 7.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
+  coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
   p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 430, low: 0, accel: 19, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 4.6, turbo: { spool: 0.75, psi: 45 }, gripK: 1.9, dragK: 0.3, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
@@ -1537,7 +1537,7 @@ function updateSky(dt, focus) {
 // throttle-opened low-pass. Turbo cars add a spool whistle and a blow-off valve.
 const ENGINES = {
   ridgeback: { cyl: 6, idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
-  coupe: { cyl: 4, idle: 900, red: 7300, tone: 0.82, rough: 0.38, sub: 0.04, cut: 2900, turbo: 0, vol: 0.95 },        // E30-style high-revving four with intake rasp
+  coupe: { cyl: 6, idle: 850, red: 6900, tone: 0.72, rough: 0.32, sub: 0.2, cut: 3600, turbo: 0.9, vol: 1, res: [1100, 7], pops: true }, // tuned E30-style turbo straight-six: bright rasp, half-order growl, pops on lift
   supra: { cyl: 6, idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
   p50: { cyl: 2, idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 1, vol: 0.75 },          // screaming two-stroke single
   pickup: { cyl: 8, idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
@@ -1568,7 +1568,8 @@ const sfx = (() => {
       const l = loopBuf.getChannelData(0); for (let i = 0; i < l.length; i++) l[i] = Math.random() * 2 - 1;
       const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9; lp.connect(master);
-      const shaper = ctx.createWaveShaper(); shaper.curve = curve(2.2); shaper.oversample = '2x'; shaper.connect(lp);
+      const shaper = ctx.createWaveShaper(); shaper.curve = curve(2.2); shaper.oversample = '2x';
+      const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.Q.value = 1.4; pk.gain.value = 0; shaper.connect(pk); pk.connect(lp); // exhaust resonance
       const mix = ctx.createGain(); mix.gain.value = 0.6; mix.connect(shaper);
       const osc = ctx.createOscillator(), oscG = ctx.createGain(); oscG.gain.value = 0.55; osc.connect(oscG); oscG.connect(mix);
       const sub = ctx.createOscillator(), subG = ctx.createGain(); sub.type = 'sine'; subG.gain.value = 0; sub.connect(subG); subG.connect(mix);
@@ -1582,7 +1583,7 @@ const sfx = (() => {
       const sq = ctx.createBiquadFilter(); sq.type = 'bandpass'; sq.frequency.value = 1300; sq.Q.value = 5;
       const sqG = ctx.createGain(); sqG.gain.value = 0; nz2.connect(sq); sq.connect(sqG); sqG.connect(fx);
       [osc, sub, nz, lfo, tw, nz2].forEach(n => n.start());
-      E = { master, lp, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
+      E = { master, lp, pk, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
     } catch (e) { ctx = null; }
   }
   function burst(vol, freq, dur, type = 'lowpass') {
@@ -1598,7 +1599,7 @@ const sfx = (() => {
       const t = ctx.currentTime, set = (prm, val, tc = 0.035) => prm.setTargetAtTime(val, t, tc);
       if (!v || !on) { set(E.master.gain, 0, 0.1); set(E.twG.gain, 0, 0.1); set(E.sqG.gain, 0, 0.1); return; }
       const p = ENGINES[v.key] || ENGINES.ridgeback;
-      if (E.key !== v.key) { E.osc.setPeriodicWave(wave(p)); E.key = v.key; set(E.subG.gain, p.sub * 0.7, 0.05); }
+      if (E.key !== v.key) { E.osc.setPeriodicWave(wave(p)); E.key = v.key; set(E.subG.gain, p.sub * 0.7, 0.05); set(E.pk.frequency, p.res ? p.res[0] : 1000, 0.05); set(E.pk.gain, p.res ? p.res[1] : 0, 0.05); }
       const rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1), rpm = p.idle + (p.red - p.idle) * rn;
       const f = rpm / 60 * p.cyl / 2, thr = v.throttle || 0;
       set(E.osc.frequency, f); set(E.sub.frequency, f / 2); set(E.lfo.frequency, f);
@@ -1610,6 +1611,7 @@ const sfx = (() => {
       const boost = v.boost || 0;
       set(E.tw.frequency, 1500 + boost * 5800); set(E.twG.gain, p.turbo * boost * boost * 0.03 * (0.3 + thr * 0.7));
       set(E.sqG.gain, v.slip && Math.abs(v.speed) > 4 && v.surf === 0 ? 0.09 : 0, 0.05);
+      if (p.pops && !thr && rn > 0.4 && Math.abs(v.speed) > 3 && Math.random() < 0.07) burst(0.05 + Math.random() * 0.1, 700 + Math.random() * 900, 0.03 + Math.random() * 0.04); // overrun pops
     },
     bov(b) {
       if (!ctx || !on) return;
@@ -1721,6 +1723,7 @@ function shift(d) {
   if (g === -1 && v.speed > 1) { toast('Stop before shifting into reverse', 1200); return; }
   if (g > 0) { const maxV = v.s.max / 3.6 * (1 - v.damage / 100 * 0.45); if (v.speed / (maxV * GEARS[g - 1]) > 1.08) { toast(`Too fast for ${ORD[g]} gear`, 1000); return; } }
   v.mg = g; v.shiftT = 0.16; sfx.shiftClick();
+  if (d > 0 && v.boost > 0.45) { sfx.bov(v.boost); v.bovReady = false; }
 }
 function toggleManual() {
   const v = player.vehicle; if (!v) return;
