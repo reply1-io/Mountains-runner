@@ -10,6 +10,7 @@
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
 - **Six vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (black E30-style turbo-six coupe with a 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a turbo bigger than the car: about 10,000 km/h, blasts through obstacles and wraps around the map edge), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
 - **Real-sounding engines**: each engine is synthesized from its cylinder count and rpm: the E30-style turbo six, turbo six, V8, diesels and a two-stroke. Turbo cars whistle and make a blow-off sound when you lift off.
+- **Your own E30 sound**: on the start screen, pick a sound or video file from your device. The game finds its steadiest engine note, loops it and re-pitches it to the E30's rpm. The file stays on your device and is remembered in your browser.
 - **Manual gearbox**: the E30 is manual by default, and any car can switch with M. It has a tachometer and a rev limiter.
 - **On foot**: get out of any vehicle to walk, run, and jump, then get into another vehicle.
 - **Day/night cycle**: working headlights, stars, and a lit campfire at night.

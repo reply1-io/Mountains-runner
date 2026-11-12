@@ -180,6 +180,11 @@ h1 span{display:block;color:transparent;-webkit-text-stroke:2px var(--ink)}
 .field label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .field input{height:44px;box-sizing:border-box;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 12px;font:700 16px var(--display);-webkit-user-select:text;user-select:text;min-width:0;width:100%}
 .field input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.soundrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel)}
+.soundrow .lbl{flex:none}
+#sndStatus{font-size:13px;color:var(--ink);flex:1 1 180px;min-width:0}
+.small{height:38px;padding:0 14px;font-size:13px;display:inline-flex;align-items:center;cursor:pointer}
+.small:focus-within,.small:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .play{align-self:flex-start;height:54px;padding:0 30px;border-radius:14px;border:0;background:var(--accent);color:#10201a;font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
 .keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;font-size:13px;color:#c8d2ca}
 .keys div{display:flex;gap:8px;align-items:baseline}
@@ -204,6 +209,11 @@ body.touch .keys{display:none}
 .menu-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ghost{height:54px;padding:0 20px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--display);font-weight:700;font-size:15px;cursor:pointer}
 @media (max-height: 540px) { .play,.ghost{height:46px} }
+.soundrow .small{height:34px;padding:0 12px;font-size:12.5px;border-radius:10px}
+@media (max-height: 540px) {
+  .soundrow{padding:6px 10px;flex-wrap:nowrap}
+  #sndStatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -281,6 +291,11 @@ body.touch .keys{display:none}
     <div class="campform">
       <div class="field"><label for="campName">Name your camp</label><input id="campName" maxlength="22" autocomplete="off" spellcheck="false" placeholder="Pine Hollow Camp"></div>
       <div class="field"><label for="friendName">Your friend's name</label><input id="friendName" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Sam"></div>
+    </div>
+    <div class="soundrow">
+      <span class="lbl">E30 engine sound</span><span id="sndStatus">Built-in, matched to your video</span>
+      <label class="ghost small" for="sndFile">Use a sound or video from my phone</label><input type="file" id="sndFile" accept="audio/*,video/*" hidden>
+      <button class="ghost small" id="sndClear" type="button" hidden>Use built-in</button>
     </div>
     <div class="cards" id="cards"></div>
     <div class="menu-actions"><button class="play" id="play">Start at camp</button><button class="ghost touchonly" id="fsBtn" type="button">Full screen</button></div>
@@ -1637,6 +1652,64 @@ function updateSky(dt, focus) {
   return { sy, dusk };
 }
 
+/* ------------------------------------------------------------------ custom engine sound */
+// The player can pick a sound or video file on their device. It never leaves the device: we find its
+// steadiest-sounding stretch, measure its pitch (→ rpm), make a seamless loop and keep it in this browser.
+let customSound = null; // { data: Float32Array, sr, baseRpm, ver }
+const idb = (() => {
+  const open = () => new Promise((res, rej) => { const r = indexedDB.open('mountains-runner', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('kv', mode), st = t.objectStore('kv'), q = fn(st); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
+  return {
+    get: k => tx('readonly', st => st.get(k)).catch(() => null),
+    set: (k, v) => tx('readwrite', st => st.put(v, k)).catch(() => null),
+    del: k => tx('readwrite', st => st.delete(k)).catch(() => null),
+  };
+})();
+async function analyseEngineFile(file) {
+  const ab = await file.arrayBuffer();
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const off = new OAC(1, 2, 44100);
+  const buf = await new Promise((res, rej) => { const pr = off.decodeAudioData(ab, res, rej); if (pr && pr.then) pr.then(res, rej); });
+  const sr = buf.sampleRate, len = Math.min(buf.length, Math.floor(sr * 25));
+  const x = new Float32Array(len);
+  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) x[i] += d[i] / buf.numberOfChannels; }
+  // downsample for pitch tracking
+  const k = Math.max(1, Math.round(sr / 11025)), ds = sr / k, n = Math.floor(len / k), y = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let a = 0; for (let j = 0; j < k; j++) a += x[i * k + j]; y[i] = a / k; }
+  const hop = Math.round(ds * 0.05), win = Math.round(ds * 0.09), minLag = Math.floor(ds / 420), maxLag = Math.ceil(ds / 60), frames = [];
+  for (let s0 = 0; s0 + win + maxLag < n; s0 += hop) {
+    let e0 = 0; for (let i = 0; i < win; i++) e0 += y[s0 + i] * y[s0 + i];
+    let eL = 0; for (let i = 0; i < win; i++) eL += y[s0 + minLag + i] ** 2;
+    let best = 0, bestLag = minLag;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      let c = 0; for (let i = 0; i < win; i++) c += y[s0 + i] * y[s0 + lag + i];
+      const r = c / Math.sqrt(e0 * eL + 1e-12); if (r > best) { best = r; bestLag = lag; }
+      eL += y[s0 + lag + win] ** 2 - y[s0 + lag] ** 2;
+    }
+    frames.push({ rms: Math.sqrt(e0 / win), conf: best, f: ds / bestLag });
+  }
+  if (frames.length < 20) throw new Error('too short');
+  const L = 16, maxRms = Math.max(...frames.map(f => f.rms));
+  let bestI = -1, bestScore = -Infinity;
+  for (let i = 0; i + L <= frames.length; i++) {
+    const seg = frames.slice(i, i + L); if (Math.min(...seg.map(f => f.rms)) < 0.35 * maxRms) continue;
+    const mf = seg.reduce((a, f) => a + f.f, 0) / L, sd = Math.sqrt(seg.reduce((a, f) => a + (f.f - mf) ** 2, 0) / L);
+    const score = seg.reduce((a, f) => a + f.conf, 0) / L - (sd / mf) * 4 + 0.3 * seg.reduce((a, f) => a + f.rms, 0) / L / maxRms;
+    if (score > bestScore) { bestScore = score; bestI = i; }
+  }
+  if (bestI < 0) bestI = frames.reduce((bi, f, i, a) => (f.rms > a[bi].rms && i + L <= a.length ? i : bi), 0);
+  const fs = frames.slice(bestI, bestI + L).map(f => f.f).sort((a, b) => a - b);
+  let rpm = fs[L >> 1] * 20; // straight-six: firing note = rpm / 20
+  while (rpm < 2500) rpm *= 2; while (rpm > 9000) rpm /= 2;
+  // cut a seamless loop with a crossfade, normalised
+  const start = bestI * hop * k, segLen = Math.min(L * hop * k, len - start), cf = Math.floor(sr * 0.06), outLen = segLen - cf, out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) out[i] = x[start + i];
+  for (let i = 0; i < cf; i++) { const t = i / cf; out[i] = x[start + i] * t + x[start + outLen + i] * (1 - t); }
+  let pk = 0; for (let i = 0; i < outLen; i++) pk = Math.max(pk, Math.abs(out[i]));
+  if (pk > 0) for (let i = 0; i < outLen; i++) out[i] *= 0.5 / pk;
+  return { data: out, sr, baseRpm: Math.round(rpm), ver: Date.now() };
+}
+
 /* ------------------------------------------------------------------ audio */
 // Each engine is synthesized from its firing frequency (rpm / 60 × cylinders / 2): a harmonic-rich
 // exhaust note, a sub-octave for V8 burble, firing-pulsed noise for grit, saturation, and a
@@ -1680,7 +1753,7 @@ const sfx = (() => {
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9; lp.connect(master);
       const shaper = ctx.createWaveShaper(); shaper.curve = curve(2.2); shaper.oversample = '2x';
       const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.Q.value = 1.4; pk.gain.value = 0; shaper.connect(pk); pk.connect(lp); // exhaust resonance
-      const mix = ctx.createGain(); mix.gain.value = 0.6; mix.connect(shaper);
+      const mix = ctx.createGain(); mix.gain.value = 0.6; mix.connect(shaper); // synth voice (muted when a custom sample plays)
       const osc = ctx.createOscillator(), oscG = ctx.createGain(); oscG.gain.value = 0.55; osc.connect(oscG); oscG.connect(mix);
       const sub = ctx.createOscillator(), subG = ctx.createGain(); sub.type = 'sine'; subG.gain.value = 0; sub.connect(subG); subG.connect(mix);
       const nz = ctx.createBufferSource(); nz.buffer = loopBuf; nz.loop = true;
@@ -1693,7 +1766,7 @@ const sfx = (() => {
       const sq = ctx.createBiquadFilter(); sq.type = 'bandpass'; sq.frequency.value = 1300; sq.Q.value = 5;
       const sqG = ctx.createGain(); sqG.gain.value = 0; nz2.connect(sq); sq.connect(sqG); sqG.connect(fx);
       [osc, sub, nz, lfo, tw, nz2].forEach(n => n.start());
-      E = { master, lp, pk, shaper, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
+      E = { mix, master, lp, pk, shaper, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
     } catch (e) { ctx = null; console.warn('Audio unavailable:', e); }
   }
   function burst(vol, freq, dur, type = 'lowpass') {
@@ -1718,8 +1791,19 @@ const sfx = (() => {
       set(E.am.gain, depth); set(E.lfoG.gain, depth);
       set(E.lp.frequency, p.cut * (0.55 + rn * 1.3 + thr * 0.9));
       set(E.master.gain, (0.045 + thr * 0.065 + rn * 0.045) * p.vol * (v.limiter && Math.random() < 0.5 ? 0.25 : 1), v.limiter ? 0.005 : 0.06);
+      // a sound file the player picked for the E30: loop its steadiest part and re-pitch it to the current rpm
+      const useC = !!(customSound && v.key === 'coupe');
+      if (useC && (!E.cust || E.cust.ver !== customSound.ver)) {
+        if (E.cust) { try { E.cust.src.stop(); } catch (e) { /* already stopped */ } }
+        const b = ctx.createBuffer(1, customSound.data.length, customSound.sr); b.getChannelData(0).set(customSound.data);
+        const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = b; src.loop = true; g.gain.value = 0;
+        src.connect(g); g.connect(E.master); src.start();
+        E.cust = { src, g, ver: customSound.ver };
+      }
+      set(E.mix.gain, useC ? 0 : 0.6, 0.05);
+      if (E.cust) { set(E.cust.g.gain, useC ? 1.7 : 0, 0.05); if (useC) set(E.cust.src.playbackRate, clamp(rpm / customSound.baseRpm, 0.3, 2.4), 0.03); }
       const boost = v.boost || 0;
-      set(E.tw.frequency, 1500 + boost * 5800); set(E.twG.gain, p.turbo * boost * boost * 0.045 * (0.3 + thr * 0.7));
+      set(E.tw.frequency, 1500 + boost * 5800); set(E.twG.gain, p.turbo * (useC ? 0.25 : 1) * boost * boost * 0.045 * (0.3 + thr * 0.7));
       set(E.sqG.gain, v.slip && Math.abs(v.speed) > 4 && v.surf === 0 ? 0.09 : 0, 0.05);
       if (p.pops && !thr && rn > 0.4 && Math.abs(v.speed) > 3 && Math.random() < 0.07) burst(0.05 + Math.random() * 0.1, 700 + Math.random() * 900, 0.03 + Math.random() * 0.04); // overrun pops
     },
@@ -2061,6 +2145,22 @@ let selected = 'ridgeback';
     wrap.appendChild(b);
   });
 }
+function showSoundStatus(msg) {
+  $('sndStatus').textContent = msg || (customSound ? `Your sound · looping the steadiest part (about ${customSound.baseRpm.toLocaleString('en-US')} rpm)` : 'Built-in, matched to your video');
+  $('sndClear').hidden = !customSound;
+}
+$('sndFile').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  showSoundStatus('Listening to your file…');
+  try {
+    customSound = await analyseEngineFile(f);
+    idb.set('e30sound', { data: customSound.data, sr: customSound.sr, baseRpm: customSound.baseRpm });
+    showSoundStatus();
+  } catch (err) { showSoundStatus('Couldn\'t read that file. Try a different video or audio file.'); }
+  e.target.value = '';
+});
+$('sndClear').addEventListener('click', () => { customSound = null; idb.del('e30sound'); showSoundStatus(); });
+idb.get('e30sound').then(v => { if (v && v.data) { customSound = { data: v.data, sr: v.sr, baseRpm: v.baseRpm, ver: Date.now() }; showSoundStatus(); } });
 const campIn = $('campName'), friendIn = $('friendName');
 campIn.value = names.camp; friendIn.value = names.friend;
 function applyNames() {
@@ -2157,7 +2257,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
