@@ -385,11 +385,8 @@ const SUMMIT = trail[trail.length - 1];
 
 const CAMP = { x: 288, z: 36, y: naturalH(288, 36) };
 
-/* jump ramps beside the highway: curved kickers you hit at speed (the 40 m one is the mega ramp) */
+/* jump ramps: none placed right now. Add entries like { s: 0.3, len: 18, wid: 7, h: 4.6, off: 19 } to bring them back */
 const RAMPS = [
-  { s: 0.12, len: 12, wid: 6, h: 2.6, off: 18 }, { s: 0.3, len: 18, wid: 7, h: 4.6, off: 19 },
-  { s: 0.47, len: 13, wid: 6, h: 3.0, off: 18 }, { s: 0.62, len: 40, wid: 10, h: 12, off: 25 },
-  { s: 0.8, len: 18, wid: 7, h: 5.0, off: 19 }, { s: 0.93, len: 12, wid: 6, h: 3.0, off: 18 },
 ].map(r => {
   const P = roadAt(ROAD_LEN * r.s); let nx = -P.tz, nz = P.tx;
   if (Math.hypot(P.x + nx, P.z + nz) < Math.hypot(P.x, P.z)) { nx = -nx; nz = -nz; } // outside of the loop
