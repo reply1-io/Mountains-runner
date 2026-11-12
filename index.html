@@ -1718,7 +1718,7 @@ const ENGINES = {
   ridgeback: { cyl: 6, idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
   // tuned E30-style turbo straight-six. harm = measured strength of each half-order of the firing
   // note (0.5x, 1x, 1.5x ... 16x) from the reference drive-by: strong 4.5x and 9x orders give the rasp
-  coupe: { cyl: 6, idle: 850, red: 6900, rough: 0.22, sub: 0, cut: 1500, turbo: 0.9, vol: 1.05, drive: 1.4, pops: true,
+  coupe: { cyl: 6, idle: 850, red: 6900, rough: 1.9, noiseQ: 0.45, jit: 0.0025, flutter: 0.45, sub: 0, cut: 1500, turbo: 0.9, vol: 1.05, drive: 1.4, pops: true,
     harm: [0.08, 1.0, 0.14, 0.33, 0.12, 0.23, 0.14, 0.30, 0.64, 0.15, 0.08, 0.08, 0.09, 0.08, 0.07, 0.15, 0.15, 0.42, 0.14, 0.06, 0.06, 0.04, 0.04, 0.04, 0.04, 0.04, 0.06, 0.05, 0.03, 0.03, 0.02, 0.02] },
   supra: { cyl: 6, idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
   p50: { cyl: 2, idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
@@ -1750,7 +1750,11 @@ const sfx = (() => {
       loopBuf = ctx.createBuffer(1, sr * 2, sr);
       const l = loopBuf.getChannelData(0); for (let i = 0; i < l.length; i++) l[i] = Math.random() * 2 - 1;
       const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9; lp.connect(master);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.9;
+      // real engines are never perfectly steady: slow random loudness flutter from exhaust pulses...
+      const flut = ctx.createGain(); flut.gain.value = 1; lp.connect(flut); flut.connect(master);
+      const slow = (rate, cut) => { const n = ctx.createBufferSource(); n.buffer = loopBuf; n.loop = true; n.playbackRate.value = rate; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; n.connect(f); n.start(); return f; };
+      const fg = ctx.createGain(); fg.gain.value = 0; slow(0.53, 35).connect(fg); fg.connect(flut.gain);
       const shaper = ctx.createWaveShaper(); shaper.curve = curve(2.2); shaper.oversample = '2x';
       const pk = ctx.createBiquadFilter(); pk.type = 'peaking'; pk.Q.value = 1.4; pk.gain.value = 0; shaper.connect(pk); pk.connect(lp); // exhaust resonance
       const mix = ctx.createGain(); mix.gain.value = 0.6; mix.connect(shaper); // synth voice (muted when a custom sample plays)
@@ -1765,8 +1769,10 @@ const sfx = (() => {
       const nz2 = ctx.createBufferSource(); nz2.buffer = loopBuf; nz2.loop = true;
       const sq = ctx.createBiquadFilter(); sq.type = 'bandpass'; sq.frequency.value = 1300; sq.Q.value = 5;
       const sqG = ctx.createGain(); sqG.gain.value = 0; nz2.connect(sq); sq.connect(sqG); sqG.connect(fx);
+      // ...and a little random pitch wobble, cycle to cycle
+      const jg = ctx.createGain(); jg.gain.value = 0; slow(0.37, 25).connect(jg); jg.connect(osc.frequency); jg.connect(lfo.frequency);
       [osc, sub, nz, lfo, tw, nz2].forEach(n => n.start());
-      E = { mix, master, lp, pk, shaper, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
+      E = { fg, jg, mix, master, lp, pk, shaper, osc, sub, subG, bp, am, lfo, lfoG, tw, twG, sqG, fx, key: null };
     } catch (e) { ctx = null; console.warn('Audio unavailable:', e); }
   }
   function burst(vol, freq, dur, type = 'lowpass') {
@@ -1782,10 +1788,11 @@ const sfx = (() => {
       const t = ctx.currentTime, set = (prm, val, tc = 0.035) => prm.setTargetAtTime(val, t, tc);
       if (!v || !on) { set(E.master.gain, 0, 0.1); set(E.twG.gain, 0, 0.1); set(E.sqG.gain, 0, 0.1); return; }
       const p = ENGINES[v.key] || ENGINES.ridgeback;
-      if (E.key !== v.key) { E.osc.setPeriodicWave(wave(p)); E.key = v.key; set(E.subG.gain, p.sub * 0.7, 0.05); set(E.pk.frequency, p.res ? p.res[0] : 1000, 0.05); set(E.pk.gain, p.res ? p.res[1] : 0, 0.05); E.shaper.curve = curve(p.drive || 2.2); }
+      if (E.key !== v.key) { E.osc.setPeriodicWave(wave(p)); E.key = v.key; set(E.subG.gain, p.sub * 0.7, 0.05); set(E.pk.frequency, p.res ? p.res[0] : 1000, 0.05); set(E.pk.gain, p.res ? p.res[1] : 0, 0.05); E.shaper.curve = curve(p.drive || 2.2); set(E.bp.Q, p.noiseQ || 1.1, 0.05); }
       const rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1), rpm = p.idle + (p.red - p.idle) * rn;
       const f = rpm / 60 * p.cyl / 2, thr = v.throttle || 0;
-      set(E.osc.frequency, p.harm ? f / 2 : f); set(E.sub.frequency, f / 2); set(E.lfo.frequency, f);
+      set(E.osc.frequency, p.harm ? f / 2 : f); set(E.sub.frequency, f / 2);
+      set(E.jg.gain, (p.harm ? f / 2 : f) * (p.jit ?? 0.004) * 50); set(E.fg.gain, (p.flutter ?? 0.12) * 50 * (0.5 + thr * 0.5)); set(E.lfo.frequency, f);
       set(E.bp.frequency, Math.min(9000, f * 3 + 250));
       const depth = p.rough * 0.45 * (0.45 + thr * 0.55);
       set(E.am.gain, depth); set(E.lfoG.gain, depth);
@@ -2257,7 +2264,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
