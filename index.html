@@ -293,7 +293,7 @@ body.touch .keys{display:none}
       <div class="field"><label for="friendName">Your friend's name</label><input id="friendName" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Sam"></div>
     </div>
     <div class="soundrow">
-      <span class="lbl">E30 engine sound</span><span id="sndStatus">Built-in, matched to your video</span>
+      <span class="lbl">E30 engine sound</span><span id="sndStatus">Built-in E30 M3-style four-cylinder</span>
       <label class="ghost small" for="sndFile">Use a sound or video from my phone</label><input type="file" id="sndFile" accept="audio/*,video/*" hidden>
       <button class="ghost small" id="sndClear" type="button" hidden>Use built-in</button>
     </div>
@@ -858,7 +858,7 @@ function beam(a, b, t, mat, parent) {
 }
 const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
-  coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
+  coupe: { name: "Coupe '87", kind: 'E30 M3-style · 2.3 four · 5-speed manual', mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 240, low: 0, accel: 8.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
   p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 10,000 km/h · the fastest thing ever', wrap: true, instantBrake: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
@@ -1716,10 +1716,10 @@ async function analyseEngineFile(file) {
 // throttle-opened low-pass. Turbo cars add a spool whistle and a blow-off valve.
 const ENGINES = {
   ridgeback: { cyl: 6, wk: { header: 0.6, pipe: 3.0, muffle: 0.45, rough: 0.9, uneven: 0.02, body: 0.5, fall: 1.4, rise: 0.2, nzT: 1.6, fcBase: 700.0, fcRange: 1800.0, hp: 250.0, top: 4200.0, wobble: 3.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 7, pkQ: 0.7 },  idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
-  // tuned E30-style turbo straight-six. harm = measured strength of each half-order of the firing
-  // note (0.5x, 1x, 1.5x ... 16x) from the reference drive-by: strong 4.5x and 9x orders give the rasp
-  coupe: { cyl: 6, wk: { header: 0.262, pipe: 2.094, muffle: 0.074, rough: 0.75, uneven: 0.015, body: 0.89, fall: 0.882, rise: 0.15, nzT: 1.101, fcBase: 725.436, fcRange: 3365.066, hp: 300, top: 9000, wobble: 2.5, vary: 0.9, r1: 0.287, r2: 0.3, pkF: 1800, pkG: 14, pkQ: 0.6 },  idle: 800, red: 6300, rough: 1.9, noiseQ: 0.45, jit: 0.0025, flutter: 0.38, sub: 0, cut: 1500, cut2: 3500, res: [1000, 4], whistle: 1600, turbo: 0.12, vol: 1.05, drive: 1.4, pops: true,
-    harm: [0.08, 1.0, 0.14, 0.33, 0.12, 0.23, 0.14, 0.30, 0.64, 0.15, 0.08, 0.08, 0.09, 0.08, 0.07, 0.15, 0.15, 0.42, 0.14, 0.06, 0.06, 0.04, 0.04, 0.04, 0.04, 0.04, 0.06, 0.05, 0.03, 0.03, 0.02, 0.02] },
+  // E30 M3-style S14-type four: 2.3 litres, no turbo, revs to 7,500. 4-2-1 headers and an
+  // individual-throttle-body intake give the sharp, raspy howl
+  coupe: { cyl: 4, wk: { header: 0.75, pipe: 2.2, muffle: 0.12, rough: 0.55, uneven: 0.01, body: 0.8, fall: 0.85, rise: 0.12, nzT: 1.0, fcBase: 900, fcRange: 3600, hp: 230, top: 8500, wobble: 2, vary: 0.6, r1: 0.3, r2: 0.25, pkF: 1500, pkG: 9, pkQ: 0.8 },
+    idle: 900, red: 7500, tone: 0.85, rough: 0.35, sub: 0, cut: 2600, turbo: 0, vol: 1, pops: true },
   supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 0.7, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900.0, fcRange: 2300.0, hp: 330.0, top: 5500.0, wobble: 2.0, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 9, pkQ: 0.7 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
   p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 1.0, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200.0, fcRange: 3000.0, hp: 450.0, top: 6500.0, wobble: 4.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 2500, pkG: 7, pkQ: 0.7 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
   pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600.0, fcRange: 1800.0, hp: 220.0, top: 4000.0, wobble: 2.5, vary: 0.7, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
@@ -2225,7 +2225,7 @@ let selected = 'ridgeback';
   });
 }
 function showSoundStatus(msg) {
-  $('sndStatus').textContent = msg || (customSound ? `Your sound · looping the steadiest part (about ${customSound.baseRpm.toLocaleString('en-US')} rpm)` : 'Built-in, matched to your video');
+  $('sndStatus').textContent = msg || (customSound ? `Your sound · looping the steadiest part (about ${customSound.baseRpm.toLocaleString('en-US')} rpm)` : 'Built-in E30 M3-style four-cylinder');
   $('sndClear').hidden = !customSound;
 }
 $('sndFile').addEventListener('change', async e => {
