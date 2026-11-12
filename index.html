@@ -385,6 +385,27 @@ const SUMMIT = trail[trail.length - 1];
 
 const CAMP = { x: 288, z: 36, y: naturalH(288, 36) };
 
+/* jump ramps beside the highway: curved kickers you hit at speed (the 40 m one is the mega ramp) */
+const RAMPS = [
+  { s: 0.12, len: 12, wid: 6, h: 2.6, off: 18 }, { s: 0.3, len: 18, wid: 7, h: 4.6, off: 19 },
+  { s: 0.47, len: 13, wid: 6, h: 3.0, off: 18 }, { s: 0.62, len: 40, wid: 10, h: 12, off: 25 },
+  { s: 0.8, len: 18, wid: 7, h: 5.0, off: 19 }, { s: 0.93, len: 12, wid: 6, h: 3.0, off: 18 },
+].map(r => {
+  const P = roadAt(ROAD_LEN * r.s); let nx = -P.tz, nz = P.tx;
+  if (Math.hypot(P.x + nx, P.z + nz) < Math.hypot(P.x, P.z)) { nx = -nx; nz = -nz; } // outside of the loop
+  return Object.assign(r, { x: P.x + nx * r.off - P.tx * r.len / 2, z: P.z + nz * r.off - P.tz * r.len / 2, yaw: Math.atan2(P.tx, P.tz) });
+});
+const rampProfile = (r, u) => r.h * Math.pow(clamp(u / r.len, 0, 1), 1.4);
+function rampH(x, z) {
+  let m = 0;
+  for (const r of RAMPS) {
+    const dx = x - r.x, dz = z - r.z; if (Math.abs(dx) > r.len + r.wid || Math.abs(dz) > r.len + r.wid) continue;
+    const sn = Math.sin(r.yaw), cs = Math.cos(r.yaw), u = dx * sn + dz * cs, w = dx * cs - dz * sn;
+    if (u >= 0 && u <= r.len && Math.abs(w) <= r.wid / 2) m = Math.max(m, rampProfile(r, u));
+  }
+  return m;
+}
+
 /* heightfield */
 const NV = SEG + 1;
 const H = new Float32Array(NV * NV);
@@ -430,7 +451,7 @@ function bumpH(x, z) {
   for (const b of l) { const q = ((x - b.x) ** 2 + (z - b.z) ** 2) / (b.r * b.r); if (q < 1) m = Math.max(m, b.h * Math.sqrt(1 - q)); }
   return m;
 }
-const groundH = (x, z) => gridH(x, z) + bumpH(x, z);
+const groundH = (x, z) => gridH(x, z) + bumpH(x, z) + rampH(x, z);
 const snowLine = (x, z) => 88 + fbm(x * 0.02, z * 0.02, 2) * 22;
 
 const SURF = [
@@ -556,11 +577,31 @@ function eachObs(x, z, fn) { const l = obsGrid.get(Math.floor(x / 10) * 100003 +
 
 const dummy = new T.Object3D(), tmpCol = new T.Color();
 function placeOK(x, z, dRoad, dTrail, dCamp) {
+  for (const r of RAMPS) if (Math.hypot(x - (r.x + Math.sin(r.yaw) * r.len / 2), z - (r.z + Math.cos(r.yaw) * r.len / 2)) < r.len * 0.75 + 18) return false; // keep run-ups and landings clear
   if (Math.hypot(x, z) > 480) return false;
   if (roadIdx.nearest(x, z).d < dRoad) return false;
   if (trailIdx.nearest(x, z).d < dTrail) return false;
   if (Math.hypot(x - CAMP.x, z - CAMP.z) < dCamp) return false;
   return true;
+}
+
+/* ramp meshes: planked deck that follows the kicker curve, with side walls down to the ground */
+for (const r of RAMPS) {
+  const pos = [], sn = Math.sin(r.yaw), cs = Math.cos(r.yaw), N = 14, W = r.wid / 2;
+  const P = (u, w, top) => { const x = r.x + u * sn + w * cs, z = r.z + u * cs - w * sn, g = gridH(x, z); return [x, top ? g + rampProfile(r, u) + 0.04 : g - 0.4, z]; };
+  const quad = (a, b, c, d) => pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+  for (let i = 0; i < N; i++) {
+    const u0 = r.len * i / N, u1 = r.len * (i + 1) / N;
+    quad(P(u0, -W, 1), P(u0, W, 1), P(u1, W, 1), P(u1, -W, 1));
+    quad(P(u0, W, 1), P(u1, W, 1), P(u1, W, 0), P(u0, W, 0));
+    quad(P(u0, -W, 1), P(u1, -W, 1), P(u1, -W, 0), P(u0, -W, 0));
+  }
+  quad(P(r.len, -W, 1), P(r.len, W, 1), P(r.len, W, 0), P(r.len, -W, 0));
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+  const m = new T.Mesh(g, new T.MeshLambertMaterial({ color: 0xa8794a, side: T.DoubleSide })); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+  // orange-and-white lip so you can spot the take-off
+  const lp = P(r.len - 0.3, 0, 1), lip = new T.Mesh(new T.BoxGeometry(r.wid + 0.1, 0.12, 0.6), new T.MeshLambertMaterial({ color: 0xff7a1a, emissive: 0x401800 }));
+  lip.position.set(lp[0], lp[1] + 0.05, lp[2]); lip.rotation.set(-Math.atan(1.4 * r.h / r.len), r.yaw, 0, 'YXZ'); scene.add(lip);
 }
 
 /* pine trees */
@@ -1010,7 +1051,7 @@ function makeVehicle(key, color) {
     key, s, g, body, wheels, mats, info,
     x: 0, z: 0, y: 0, yaw: 0, pitch: 0, roll: 0, speed: 0, vy: 0, air: false, steer: 0,
     mode: s.awd ? '4H' : '2H', damage: 0, lights: false, ai: null, wheelsDown: 4, surf: 0, slip: false, brakeOn: false,
-    tPitch: 0, tRoll: 0, gY: 0, art: [0, 0, 0, 0], belly: 0, flipped: 0, latAcc: 0, accel: 0, rpm: 0, rpmS: 0.12, gear: 'N', boost: 0, throttle: 0, bovReady: false,
+    tPitch: 0, tRoll: 0, gY: 0, art: [0, 0, 0, 0], belly: 0, flipped: 0, latAcc: 0, accel: 0, rpm: 0, rpmS: 0.12, gear: 'N', boost: 0, throttle: 0, bovReady: false, airT: 0, airMax: 0,
     manual: key === 'coupe', mg: 1, shiftT: 0, rpmM: 0.12, limiter: false,
   };
   scene.add(g); vehicles.push(v); return v;
@@ -1059,7 +1100,7 @@ function collideVehicle(v) {
       if (imp > 4) { v.damage = Math.min(100, v.damage + (imp - 4) * 2.6); if (v === player.vehicle) { shake = Math.min(1, imp * 0.05); sfx.thud(imp); } }
     }
   };
-  const unstoppable = v.s.wrap && Math.abs(v.speed) > 55; // the Pocket 50 blasts through everything above 200 km/h
+  const unstoppable = (v.s.wrap && Math.abs(v.speed) > 55) || (v.air && v.y - v.gY > 6); // Pocket 50 blasts through everything; anything flying high clears the treetops
   for (const q of circA) {
     if (unstoppable) break;
     eachObs(q.x, q.z, o => resolve(q.x, q.z, q.r, o.x, o.z, o.r));
@@ -1087,7 +1128,7 @@ function driveVehicle(v, inp, dt) {
     v.y = lerp(v.y, v.gY + (s.wid / 2 - s.wr * 0.6) * v.flipped, 0.2);
     return;
   }
-  const lowAir = !s.wrap && (v.y - v.gY) > 0.3; // the Pocket 50's wing gives it enough downforce to never leave the ground
+  const lowAir = !s.wrap && (v.y - v.gY) > 0.3; // the Pocket 50's turbo keeps pushing even in the air
   v.surf = surfaceAt(v.x, v.z);
   const sg = SURF[v.surf].grip * (v.surf === 0 ? 1 : s.off);
   const four = s.awd && v.mode !== '2H', low = v.mode === '4L';
@@ -1157,17 +1198,26 @@ function driveVehicle(v, inp, dt) {
   poseGround(v);
 
   // vertical: follow the ground, leave it over sharp crests
+  const AIR_G = 9.8 * 0.6; // floaty arcade gravity while airborne = more hang time
   if (v.air) {
-    v.vy -= 9.8 * dt; v.y += v.vy * dt;
-    v.pitch += (v.tPitch - v.pitch) * Math.min(1, dt * 1.5);
+    v.vy -= AIR_G * dt; v.y += v.vy * dt; v.airT += dt; v.airMax = Math.max(v.airMax, v.y - v.gY);
+    v.pitch += (clamp(Math.atan2(v.vy, Math.abs(v.speed) + 2), -0.6, 0.6) - v.pitch) * Math.min(1, dt * 1.2); // nose follows the arc
     if (v.y <= v.gY) {
-      if (v.vy < -7 && !v.s.wrap) { v.damage = Math.min(100, v.damage + (-v.vy - 7) * 3); if (v === player.vehicle) { shake = 0.6; sfx.thud(-v.vy); } }
+      const hit = -v.vy;
+      if (hit > 24 && !s.wrap) { v.damage = Math.min(100, v.damage + (hit - 24) * 1.5); } // only really hard landings hurt
+      if (v === player.vehicle) {
+        if (hit > 6) { shake = Math.min(0.8, hit * 0.03); sfx.thud(hit); }
+        if (v.airT > 0.8) toast(`Big air! <b>${v.airT.toFixed(1)} s</b> · ${Math.round(v.airMax)} m high`, 2000);
+      }
       v.y = v.gY; v.air = false; v.vy = 0;
     }
   } else {
-    const nvy = clamp((v.gY - v.y) / dt, -40, 40);
-    if (!s.wrap && v.y - v.gY > -0.01 && nvy < v.vy - 9.8 * dt * 2.5 && Math.abs(v.speed) > 9) { v.air = true; v.y += v.vy * dt; }
-    else { v.vy = nvy; v.y = v.gY; }
+    const nvy = clamp((v.gY - v.y) / dt, -60, 60);
+    if (v.y - v.gY > -0.01 && nvy < v.vy - AIR_G * dt * 2.5 && Math.abs(v.speed) > 7) {
+      v.air = true; v.airT = 0; v.airMax = 0;
+      v.vy = Math.min(v.vy * 1.3 + 1.5, s.wrap ? 24 : 45); // kick off the lip
+      v.y += v.vy * dt;
+    } else { v.vy = nvy; v.y = v.gY; }
   }
   if (!v.air) {
     v.pitch += (v.tPitch - v.pitch) * Math.min(1, dt * 12);
@@ -1843,6 +1893,7 @@ const MAPPX = 500, mapCv = document.createElement('canvas'); mapCv.width = mapCv
   m.strokeStyle = '#e8e2cf'; m.lineWidth = 7; m.stroke(); m.strokeStyle = '#3b3e43'; m.lineWidth = 4.5; m.stroke();
   m.beginPath(); trail.forEach((p, i) => { const [x, y] = P(p); i ? m.lineTo(x, y) : m.moveTo(x, y); });
   m.setLineDash([5, 3]); m.strokeStyle = '#c08a52'; m.lineWidth = 2.5; m.stroke(); m.setLineDash([]);
+  m.fillStyle = '#ff7a1a'; for (const r of RAMPS) { const [x, y] = P({ x: r.x + Math.sin(r.yaw) * r.len / 2, z: r.z + Math.cos(r.yaw) * r.len / 2 }); m.beginPath(); m.arc(x, y, 3 + r.h * 0.3, 0, 6.283); m.fill(); }
 }
 const mmCv = $('minimap'), mm = mmCv.getContext('2d');
 function drawMinimap(px, pz, bearing) {
@@ -2024,7 +2075,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>

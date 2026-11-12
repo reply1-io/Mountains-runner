@@ -5,6 +5,7 @@
 ## What's in it
 - **Valley highway**: a paved loop with lane markings, reflector posts, and other vehicles driving on it.
 - **Ridge trail**: a rocky dirt trail with switchbacks up to Lookout Peak. Use 4L low range to crawl over the rocks.
+- **Jump ramps**: six wooden kickers beside the highway (orange dots on the minimap), including a 12 m tall mega ramp. Floaty air physics give big hang time on ramps and mountain crests, with an airtime and height callout when you land.
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
 - **Six vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (black E30-style turbo-six coupe with a 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a turbo bigger than the car: about 10,000 km/h, blasts through obstacles and wraps around the map edge), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
