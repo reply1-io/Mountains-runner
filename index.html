@@ -765,7 +765,7 @@ const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
   coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
-  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 10,000 km/h · the fastest thing ever', wrap: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 10,000 km/h · the fastest thing ever', wrap: true, instantBrake: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
@@ -1133,6 +1133,12 @@ function driveVehicle(v, inp, dt) {
   const prev = v.speed;
   v.speed += a * dt;
   if (decel > 0) { const d = decel * dt; v.speed = Math.abs(v.speed) <= d ? 0 : v.speed - Math.sign(v.speed) * d; }
+  if (s.instantBrake) { // brake = instant stop from any speed; keep holding it to stay stopped, release and press again to reverse
+    if (inp.brake && (v.brakeLatch || v.speed > 0.3)) {
+      if (v.speed > 15 && v === player.vehicle) shake = Math.min(1, 0.3 + v.speed / 300);
+      v.speed = 0; v.brakeLatch = true; v.brakeOn = true;
+    } else if (!inp.brake) v.brakeLatch = false;
+  }
   v.accel = (v.speed - prev) / dt;
 
   const steerT = inp.steer * 0.62 / (1 + Math.abs(v.speed) / 14);
