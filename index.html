@@ -89,8 +89,8 @@ button{font:inherit;color:inherit}
 #gear{pointer-events:auto;cursor:pointer;background:transparent;color:inherit}
 .shiftbtn{display:none}
 body.touch.manual .shiftbtn{display:block}
-#bUp{left:calc(var(--gl) + 172px);bottom:calc(var(--gb) + 84px)}
-#bDn{left:calc(var(--gl) + 172px);bottom:calc(var(--gb) + 14px)}
+#bUp{left:calc(var(--gl) + 84px);bottom:calc(var(--gb) + 172px)}
+#bDn{left:calc(var(--gl) + 14px);bottom:calc(var(--gb) + 172px)}
 .meters{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center}
 .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--warn);border-radius:3px}
@@ -122,6 +122,28 @@ body.touch #hint{display:none}
 body.touch #cluster{right:auto;left:50%;transform:translateX(-50%);bottom:var(--gb);width:220px;padding:8px 12px;gap:6px}
 body.touch #speed{font-size:38px}
 body.touch #prompt{bottom:calc(var(--gb) + 180px)}
+.touchonly{display:none}
+body.touch .touchonly{display:inline-block}
+body.touch.onfoot .pedal{display:none}
+body.touch #toast{top:calc(var(--gt) + 96px);font-size:14px}
+#bHand.jump{background:var(--accent);color:#10201a}
+@media (pointer: coarse) and (max-width: 760px) {
+  #compass{display:none}
+  #tTime{display:none}
+}
+@media (orientation: portrait) {
+  body.touch #cluster{bottom:calc(var(--gb) + 178px)}
+  body.touch #prompt{bottom:calc(var(--gb) + 290px)}
+  body.touch #incl .stack{display:none}
+}
+
+#rotate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#0b1214;text-align:center;padding:24px}
+#rotate div{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:320px}
+#rotate b{font-family:var(--display);font-size:24px}
+#rotate p{margin:0;color:var(--muted);font-size:15px;line-height:1.4}
+#rotate i{width:64px;height:40px;border:3px solid var(--ink);border-radius:8px;animation:tilt 2s ease-in-out infinite}
+@keyframes tilt{0%,30%{transform:rotate(-90deg)}60%,100%{transform:rotate(0)}}
+@media (prefers-reduced-motion: reduce){ #rotate i{animation:none} }
 body.touch #incl{padding:6px 10px;gap:8px}
 body.touch .gauge canvas{width:44px;height:44px}
 body.touch .gauge{min-width:48px}
@@ -165,6 +187,23 @@ h1 span{display:block;color:transparent;-webkit-text-stroke:2px var(--ink)}
 body.touch .keys{display:none}
 @media (max-width:560px){ .cards,.campform{grid-template-columns:1fr} .keys{grid-template-columns:1fr} #compass{width:200px} #incl .stack{display:none} }
 @media (prefers-reduced-motion: reduce){ #toast{transition:none} }
+/* start screen on a landscape phone: compact, start button always reachable */
+@media (max-height: 540px) {
+  .menu-inner{gap:10px;width:min(780px,100%);padding-block:max(12px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-bottom,0px))}
+  .eyebrow,.lede{display:none}
+  h1{font-size:34px}
+  h1 span{display:inline;-webkit-text-stroke:1.5px var(--ink)}
+  .cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .card{padding:8px 10px;gap:3px}
+  .card h3{font-size:14px}
+  .card .kind{font-size:10px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat{font-size:10.5px;grid-template-columns:54px 1fr}
+  .field input{height:38px}
+  .menu-actions{position:sticky;bottom:0}
+}
+.menu-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ghost{height:54px;padding:0 20px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--display);font-weight:700;font-size:15px;cursor:pointer}
+@media (max-height: 540px) { .play,.ghost{height:46px} }
 </style>
 </head>
 <body>
@@ -191,6 +230,7 @@ body.touch .keys{display:none}
     <button class="tbtn" id="tLights" title="Headlights (L)">LIGHTS</button>
     <button class="tbtn" id="tTime" title="Skip one hour (T)">+1H</button>
     <button class="tbtn" id="tSound" title="Sound">SOUND</button>
+    <button class="tbtn touchonly" id="tReset" title="Recover vehicle (R)">RESET</button>
     <button class="tbtn" id="tMenu" title="Pause (Esc)">II</button>
   </div>
 
@@ -222,7 +262,8 @@ body.touch .keys{display:none}
   <div id="toast" style="opacity:0"></div>
 </div>
 
-<div id="touch">
+<div id="rotate" hidden><div><i></i><b>Turn your phone sideways</b><p>Mountains Runner plays best in landscape: steering on the left, pedals on the right.</p><button class="ghost" id="rotateOk" type="button">Play upright anyway</button></div></div>
+<div id="touch" style="visibility:hidden">
   <div id="stick"><div id="knob"></div></div>
   <button class="rbtn" id="bDoor">USE</button>
   <button class="rbtn" id="bHand">HAND</button>
@@ -242,7 +283,7 @@ body.touch .keys{display:none}
       <div class="field"><label for="friendName">Your friend's name</label><input id="friendName" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Sam"></div>
     </div>
     <div class="cards" id="cards"></div>
-    <button class="play" id="play">Start at camp</button>
+    <div class="menu-actions"><button class="play" id="play">Start at camp</button><button class="ghost touchonly" id="fsBtn" type="button">Full screen</button></div>
     <div class="keys">
       <div><kbd>W</kbd><kbd>S</kbd> Gas · brake / reverse</div>
       <div><kbd>A</kbd><kbd>D</kbd> Steer</div>
@@ -277,6 +318,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } },
 };
 const names = { camp: store.get('mr.camp', 'Pine Hollow Camp'), friend: store.get('mr.friend', 'Sam') };
+const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no haptics */ } };
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
 
@@ -1173,7 +1215,7 @@ function driveVehicle(v, inp, dt) {
   if (decel > 0) { const d = decel * dt; v.speed = Math.abs(v.speed) <= d ? 0 : v.speed - Math.sign(v.speed) * d; }
   if (s.instantBrake) { // brake = instant stop from any speed; keep holding it to stay stopped, release and press again to reverse
     if (inp.brake && (v.brakeLatch || v.speed > 0.3)) {
-      if (v.speed > 15 && v === player.vehicle) shake = Math.min(1, 0.3 + v.speed / 300);
+      if (v.speed > 15 && v === player.vehicle) { shake = Math.min(1, 0.3 + v.speed / 300); buzz(60); }
       v.speed = 0; v.brakeLatch = true; v.brakeOn = true;
     } else if (!inp.brake) v.brakeLatch = false;
   }
@@ -1580,7 +1622,7 @@ function updateSky(dt, focus) {
   sun.position.set(focus.x + sx * 160, focus.y + Math.max(sy, 0.05) * 200, focus.z + 70);
   sun.target.position.copy(focus);
   sun.intensity = 0.95 * dayF; sun.color.setHex(0xffffff).lerp(tmpC.setHex(0xffb07a), dusk * 0.8);
-  sun.castShadow = dayF > 0.05;
+  sun.castShadow = dayF > 0.05 && !perf.low;
   hemi.intensity = 0.2 + dayF * 0.5;
   hemi.color.setHex(0x6c80b8).lerp(tmpC.setHex(0xcfe6ff), dayF);
   hemi.groundColor.setHex(0x1d2430).lerp(tmpC.setHex(0x4a5a3a), dayF);
@@ -1689,7 +1731,8 @@ const sfx = (() => {
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25 * b, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
       s.connect(f); f.connect(g); g.connect(ctx.destination); s.start(t, Math.random()); s.stop(t + 0.6);
     },
-    thud(i) { burst(Math.min(0.6, i * 0.04), 400, 0.35); },
+    thud(i) { burst(Math.min(0.6, i * 0.04), 400, 0.35); buzz(Math.min(90, 15 + i * 4)); },
+    resume() { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); },
     step() { burst(0.05, 900, 0.08); },
     door() { burst(0.25, 1400, 0.12); },
     shiftClick() { burst(0.1, 2600, 0.05, 'highpass'); },
@@ -1732,15 +1775,24 @@ function gatherInput() {
 
 // mouse / touch look
 {
-  const el = renderer.domElement; let drag = null;
-  el.addEventListener('pointerdown', e => { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); });
+  const el = renderer.domElement, pts = new Map(); let pinch = 0;
+  el.addEventListener('pointerdown', e => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); el.setPointerCapture(e.pointerId); pinch = 0; });
   el.addEventListener('pointermove', e => {
-    if (!drag || drag.id !== e.pointerId) return;
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    const p = pts.get(e.pointerId); if (!p) return;
+    if (pts.size >= 2) { // two fingers: pinch to zoom the camera
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch) cam.dist = clamp(cam.dist * pinch / d, 3.5, 40);
+      pinch = d; return;
+    }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
     cam.yaw -= dx * 0.006; cam.pitch = clamp(cam.pitch + dy * 0.004, -0.05, 1.2); cam.free = 2.2;
   });
-  const end = e => { if (drag && drag.id === e.pointerId) drag = null; };
+  const end = e => { pts.delete(e.pointerId); pinch = 0; };
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  // no page zoom or bounce while playing
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('dblclick', e => e.preventDefault());
   el.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * (e.deltaY > 0 ? 1.1 : 0.9), 3.5, 40); }, { passive: false });
 }
 // touch controls
@@ -1764,6 +1816,7 @@ function gatherInput() {
   hold('pGas', 'gas'); hold('pBrake', 'brake'); hold('bHand', 'hand');
   $('bDoor').addEventListener('click', () => state === 'play' && doorAction());
   $('bUp').addEventListener('click', () => state === 'play' && shift(1));
+  $('tReset').addEventListener('click', () => state === 'play' && recover());
   $('bDn').addEventListener('click', () => state === 'play' && shift(-1));
 }
 
@@ -1791,7 +1844,7 @@ function shift(d) {
   const g = v.mg + d; if (g > 5 || g < -1) return;
   if (g === -1 && v.speed > 1) { toast('Stop before shifting into reverse', 1200); return; }
   if (g > 0) { const maxV = v.s.max / 3.6 * (1 - v.damage / 100 * 0.45); if (v.speed / (maxV * GEARS[g - 1]) > 1.08) { toast(`Too fast for ${ORD[g]} gear`, 1000); return; } }
-  v.mg = g; v.shiftT = 0.16; sfx.shiftClick();
+  v.mg = g; v.shiftT = 0.16; sfx.shiftClick(); buzz(12);
   if (d > 0 && v.boost > 0.45) { sfx.bov(v.boost); v.bovReady = false; }
 }
 function toggleManual() {
@@ -1943,6 +1996,9 @@ function updateHUD(dt) {
   $('vPitch').textContent = pd + '°'; $('vPitch').classList.toggle('hot', pitchHot);
   $('vWheels').textContent = v ? `${v.air ? 0 : v.wheelsDown}/4` : '—';
   $('driveinfo').hidden = !v; $('footinfo').hidden = !!v;
+  document.body.classList.toggle('onfoot', !v);
+  if (!v) document.body.classList.remove('manual');
+  const hb = $('bHand'), hl = v ? 'HAND' : 'JUMP'; if (hb.textContent !== hl) { hb.textContent = hl; hb.classList.toggle('jump', !v); }
   if (v) {
     $('vehName').textContent = v.s.name;
     $('surface').textContent = SURF[v.surf].name + (v.slip ? ' · slipping' : '');
@@ -2021,14 +2077,34 @@ for (const el of [campIn, friendIn]) {
 }
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawSign(); drawTag(friendTag, names.friend); });
 let started = false;
+async function goFullscreen() {
+  try {
+    const d = document.documentElement;
+    if (!document.fullscreenElement && d.requestFullscreen) await d.requestFullscreen({ navigationUI: 'hide' });
+    if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+  } catch (e) { /* not every phone or browser allows this */ }
+}
+let wakeLock = null;
+async function keepAwake() { try { if (navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { wakeLock = null; } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state === 'play') { keepAwake(); sfx.resume(); } });
+addEventListener('pointerdown', () => sfx.resume(), { passive: true });
+$('fsBtn').addEventListener('click', goFullscreen);
+let rotateOk = false;
+function checkOrientation() { $('rotate').hidden = !(isTouch && innerHeight > innerWidth * 1.1 && !rotateOk); }
+$('rotateOk').addEventListener('click', () => { rotateOk = true; checkOrientation(); });
+addEventListener('resize', checkOrientation); checkOrientation();
 $('play').addEventListener('click', () => {
+  if (isTouch) goFullscreen();
+  keepAwake();
   applyNames(); sfx.init(); $('tSound').classList.toggle('on', sfx.on);
   if (!started) {
     started = true;
     enterVehicle(parked[selected]);
     camPos.set(player.vehicle.x - 10, player.vehicle.y + 5, player.vehicle.z - 10);
     friend.near = true;
-    toast(`Welcome to <b>${esc(names.camp)}</b>. ${esc(names.friend)} is by the fire: get out and press <b>${isTouch ? 'USE' : 'E'}</b> to invite them along.`, 6000);
+    toast(isTouch
+      ? `Welcome to <b>${esc(names.camp)}</b>. Steer with the left stick, <b>GAS</b> and <b>BRAKE</b> on the right, <b>USE</b> to get out or talk to ${esc(names.friend)}. Drag the screen to look, pinch to zoom.`
+      : `Welcome to <b>${esc(names.camp)}</b>. ${esc(names.friend)} is by the fire: get out and press <b>E</b> to invite them along.`, 7000);
   }
   resume();
 });
@@ -2043,9 +2119,18 @@ addEventListener('resize', resize); resize();
 
 const focus = new T.Vector3();
 let last = performance.now();
+const perf = { frames: 0, time: 0, done: false, low: false };
+function lowerQuality() {
+  perf.low = true;
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = false; sun.castShadow = false;
+  scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); });
+  toast('Switched to smoother graphics for your device', 2200);
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  if (state === 'play' && !perf.done) { perf.frames++; perf.time += raw; if (perf.time > 5) { perf.done = true; if (perf.frames / perf.time < 38) lowerQuality(); } }
   if (state === 'play') {
     const pv = player.vehicle, inp = gatherInput(), steps = clamp(Math.ceil((pv ? Math.abs(pv.speed) : 0) * dt / 0.8), 2, 64), h = dt / steps;
     for (let i = 0; i < steps; i++) {
