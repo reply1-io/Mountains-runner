@@ -7,7 +7,7 @@
 - **Ridge trail**: a rocky dirt trail with switchbacks up to Lookout Peak. Use 4L low range to crawl over the rocks.
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
-- **Six vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (black E30-style turbo-six coupe with a 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a huge turbo: 0-100 km/h in 1.4 s, nearly 1,000 km/h), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
+- **Six vehicles**: Ridgeback 4x4 (overland SUV), Coupe '87 (black E30-style turbo-six coupe with a 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a turbo bigger than the car: about 10,000 km/h, blasts through obstacles and wraps around the map edge), Haulmark Pickup (4x4 truck), and Freight Hauler (box truck).
 - **Real-sounding engines**: each engine is synthesized from its cylinder count and rpm: the E30-style turbo six, turbo six, V8, diesels and a two-stroke. Turbo cars whistle and make a blow-off sound when you lift off.
 - **Manual gearbox**: the E30 is manual by default, and any car can switch with M. It has a tachometer and a rev limiter.
 - **On foot**: get out of any vehicle to walk, run, and jump, then get into another vehicle.

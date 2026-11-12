@@ -765,7 +765,7 @@ const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
   coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
-  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 1,000 km/h · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 1000, low: 0, accel: 44, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 4.2, dragK: 0.04, three: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 10,000 km/h · the fastest thing ever', wrap: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
@@ -1059,7 +1059,9 @@ function collideVehicle(v) {
       if (imp > 4) { v.damage = Math.min(100, v.damage + (imp - 4) * 2.6); if (v === player.vehicle) { shake = Math.min(1, imp * 0.05); sfx.thud(imp); } }
     }
   };
+  const unstoppable = v.s.wrap && Math.abs(v.speed) > 55; // the Pocket 50 blasts through everything above 200 km/h
   for (const q of circA) {
+    if (unstoppable) break;
     eachObs(q.x, q.z, o => resolve(q.x, q.z, q.r, o.x, o.z, o.r));
     for (const u of vehicles) {
       if (u === v || Math.abs(u.x - v.x) > 14 || Math.abs(u.z - v.z) > 14) continue;
@@ -1070,7 +1072,10 @@ function collideVehicle(v) {
     if (friend.state !== 'ride') resolve(q.x, q.z, q.r, friend.x, friend.z, 0.45);
   }
   const r = Math.hypot(v.x, v.z);
-  if (r > 485) { v.x *= 485 / r; v.z *= 485 / r; v.speed *= 0.5; }
+  if (r > 485) {
+    if (v.s.wrap) { v.x *= -0.95; v.z *= -0.95; v.air = false; v.vy = 0; poseGround(v, true); } // too fast for the map: come back in on the far side
+    else { v.x *= 485 / r; v.z *= 485 / r; v.speed *= 0.5; }
+  }
 }
 
 function driveVehicle(v, inp, dt) {
@@ -1082,7 +1087,7 @@ function driveVehicle(v, inp, dt) {
     v.y = lerp(v.y, v.gY + (s.wid / 2 - s.wr * 0.6) * v.flipped, 0.2);
     return;
   }
-  const lowAir = (v.y - v.gY) > 0.3;
+  const lowAir = !s.wrap && (v.y - v.gY) > 0.3; // the Pocket 50's wing gives it enough downforce to never leave the ground
   v.surf = surfaceAt(v.x, v.z);
   const sg = SURF[v.surf].grip * (v.surf === 0 ? 1 : s.off);
   const four = s.awd && v.mode !== '2H', low = v.mode === '4L';
@@ -1150,12 +1155,12 @@ function driveVehicle(v, inp, dt) {
     v.vy -= 9.8 * dt; v.y += v.vy * dt;
     v.pitch += (v.tPitch - v.pitch) * Math.min(1, dt * 1.5);
     if (v.y <= v.gY) {
-      if (v.vy < -7) { v.damage = Math.min(100, v.damage + (-v.vy - 7) * 3); if (v === player.vehicle) { shake = 0.6; sfx.thud(-v.vy); } }
+      if (v.vy < -7 && !v.s.wrap) { v.damage = Math.min(100, v.damage + (-v.vy - 7) * 3); if (v === player.vehicle) { shake = 0.6; sfx.thud(-v.vy); } }
       v.y = v.gY; v.air = false; v.vy = 0;
     }
   } else {
     const nvy = clamp((v.gY - v.y) / dt, -40, 40);
-    if (v.y - v.gY > -0.01 && nvy < v.vy - 9.8 * dt * 2.5 && Math.abs(v.speed) > 9) { v.air = true; v.y += v.vy * dt; }
+    if (!s.wrap && v.y - v.gY > -0.01 && nvy < v.vy - 9.8 * dt * 2.5 && Math.abs(v.speed) > 9) { v.air = true; v.y += v.vy * dt; }
     else { v.vy = nvy; v.y = v.gY; }
   }
   if (!v.air) {
@@ -1988,7 +1993,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (state === 'play') {
-    const pv = player.vehicle, inp = gatherInput(), steps = clamp(Math.ceil((pv ? Math.abs(pv.speed) : 0) * dt / 0.5), 2, 16), h = dt / steps;
+    const pv = player.vehicle, inp = gatherInput(), steps = clamp(Math.ceil((pv ? Math.abs(pv.speed) : 0) * dt / 0.8), 2, 64), h = dt / steps;
     for (let i = 0; i < steps; i++) {
       for (const v of vehicles) {
         if (v.ai) updateAI(v, h);
