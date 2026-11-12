@@ -765,7 +765,7 @@ const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
   coupe: { name: "Coupe '87", kind: 'E30-style coupe · turbo six · 5-speed manual', turbo: { spool: 1.4, psi: 20 }, mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 236, low: 0, accel: 9.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
-  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 1,000 km/h · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 1000, low: 0, accel: 44, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 4.6, turbo: { spool: 1.6, psi: 150 }, gripK: 4.2, dragK: 0.04, three: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 1,000 km/h · the fastest thing ever', len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 1000, low: 0, accel: 44, awd: false, off: 0.4, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 4.2, dragK: 0.04, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
@@ -909,13 +909,18 @@ const BUILD = {
     for (const x of [-0.3, 0.3]) box(0.08, 0.06, 0.03, m.tail, x, sh - 0.1, -L / 2 - 0.0, b);
     const sx = mesh(new T.CylinderGeometry(0.035, 0.035, 0.75, 8), m.chrome, -(W / 2 - 0.08), y0 - 0.04, -0.2, b, false); sx.rotation.x = Math.PI / 2;
     // the big turbo
-    const snail = mesh(new T.CylinderGeometry(0.5, 0.5, 0.34, 18), steel, 0.12, sh + 0.12, -L / 2 - 0.45, b); snail.rotation.z = Math.PI / 2;
-    const inlet = mesh(new T.CylinderGeometry(0.36, 0.25, 0.4, 16), steel, 0.48, sh + 0.12, -L / 2 - 0.45, b); inlet.rotation.z = Math.PI / 2;
-    mesh(new T.CylinderGeometry(0.28, 0.28, 0.28, 14), hot, -0.18, sh + 0.12, -L / 2 - 0.45, b).rotation.z = Math.PI / 2;
-    const mesh_ = mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 16), M(0x2a2c30), 0.69, sh + 0.12, -L / 2 - 0.45, b, false); mesh_.rotation.z = Math.PI / 2; // intake mesh
-    beam([0.12, sh + 0.55, -L / 2 - 0.45], [0.12, rf - 0.02, -L * 0.28], 0.17, steel, b);
-    const pipe = mesh(new T.CylinderGeometry(0.17, 0.13, 0.9, 12), m.chrome, -0.3, y0 + 0.12, -L / 2 - 0.4, b, false); pipe.rotation.x = Math.PI / 2;
-    const flame = mesh(new T.ConeGeometry(0.22, 1.5, 10), new T.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.85 }), -0.3, y0 + 0.12, -L / 2 - 1.6, b, false);
+    // the big turbo: built at unit size around its own centre, then scaled up as one piece
+    const K = 1.9, tg = new T.Group();
+    mesh(new T.CylinderGeometry(0.5, 0.5, 0.34, 20), steel, 0, 0, 0, tg).rotation.z = Math.PI / 2;            // compressor housing
+    mesh(new T.CylinderGeometry(0.36, 0.25, 0.4, 18), steel, 0.36, 0, 0, tg).rotation.z = Math.PI / 2;         // inlet bell
+    mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 18), M(0x2a2c30), 0.57, 0, 0, tg, false).rotation.z = Math.PI / 2; // intake mesh
+    mesh(new T.CylinderGeometry(0.28, 0.28, 0.28, 16), hot, -0.3, 0, 0, tg).rotation.z = Math.PI / 2;           // glowing turbine side
+    mesh(new T.TorusGeometry(0.42, 0.06, 6, 20), steel, -0.05, 0, 0, tg).rotation.y = Math.PI / 2;            // volute ridge
+    box(0.2, 0.36, 0.2, steel, 0, 0.55, 0, tg);                                                                // outlet
+    tg.scale.setScalar(K); tg.position.set(0.1, sh + 0.12 + 0.42 * (K - 1), -L / 2 - 0.42 * K); b.add(tg);
+    beam([0.1, tg.position.y + 0.7 * K, tg.position.z], [0.1, rf - 0.02, -L * 0.28], 0.22, steel, b);    // charge pipe to the roof
+    const pipe = mesh(new T.CylinderGeometry(0.24, 0.19, 1.2, 12), m.chrome, -0.32, y0 + 0.14, -L / 2 - 0.55, b, false); pipe.rotation.x = Math.PI / 2;
+    const flame = mesh(new T.ConeGeometry(0.32, 2.2, 10), new T.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.85 }), -0.32, y0 + 0.14, -L / 2 - 2.25, b, false);
     flame.rotation.x = -Math.PI / 2; flame.visible = false;
     for (const x of [-0.42, 0.42]) box(0.04, 0.16, 0.1, m.black, x, rf + 0.08, -L * 0.22, b);
     box(W * 1.3, 0.04, 0.28, m.black, 0, rf + 0.17, -L * 0.24, b);
