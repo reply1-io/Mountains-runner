@@ -1715,15 +1715,15 @@ async function analyseEngineFile(file) {
 // exhaust note, a sub-octave for V8 burble, firing-pulsed noise for grit, saturation, and a
 // throttle-opened low-pass. Turbo cars add a spool whistle and a blow-off valve.
 const ENGINES = {
-  ridgeback: { cyl: 6, wk: { header: 0.6, pipe: 3.0, muffle: 0.45, rough: 2.2, uneven: 0.02, body: 0.5, fall: 1.4, rise: 0.2, nzT: 1.6, fcBase: 700, fcRange: 1800, hp: 250, top: 4200, wobble: 3, vary: 0.8 },  idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
+  ridgeback: { cyl: 6, wk: { header: 0.6, pipe: 3.0, muffle: 0.45, rough: 0.9, uneven: 0.02, body: 0.5, fall: 1.4, rise: 0.2, nzT: 1.6, fcBase: 700.0, fcRange: 1800.0, hp: 250.0, top: 4200.0, wobble: 3.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 7, pkQ: 0.7 },  idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
   // tuned E30-style turbo straight-six. harm = measured strength of each half-order of the firing
   // note (0.5x, 1x, 1.5x ... 16x) from the reference drive-by: strong 4.5x and 9x orders give the rasp
-  coupe: { cyl: 6, wk: { header: 0.516, pipe: 2.656, muffle: 0.171, rough: 2.961, uneven: 0.015, body: 0.2, fall: 0.982, rise: 0.15, nzT: 1.388, fcBase: 920.425, fcRange: 2125.876, hp: 372.911, top: 5000, wobble: 2.5, vary: 0.9 },  idle: 800, red: 6300, rough: 1.9, noiseQ: 0.45, jit: 0.0025, flutter: 0.38, sub: 0, cut: 1500, cut2: 3500, res: [1000, 4], whistle: 1600, turbo: 0.12, vol: 1.05, drive: 1.4, pops: true,
+  coupe: { cyl: 6, wk: { header: 0.262, pipe: 2.094, muffle: 0.074, rough: 0.75, uneven: 0.015, body: 0.89, fall: 0.882, rise: 0.15, nzT: 1.101, fcBase: 725.436, fcRange: 3365.066, hp: 300, top: 9000, wobble: 2.5, vary: 0.9, r1: 0.287, r2: 0.3, pkF: 1800, pkG: 14, pkQ: 0.6 },  idle: 800, red: 6300, rough: 1.9, noiseQ: 0.45, jit: 0.0025, flutter: 0.38, sub: 0, cut: 1500, cut2: 3500, res: [1000, 4], whistle: 1600, turbo: 0.12, vol: 1.05, drive: 1.4, pops: true,
     harm: [0.08, 1.0, 0.14, 0.33, 0.12, 0.23, 0.14, 0.30, 0.64, 0.15, 0.08, 0.08, 0.09, 0.08, 0.07, 0.15, 0.15, 0.42, 0.14, 0.06, 0.06, 0.04, 0.04, 0.04, 0.04, 0.04, 0.06, 0.05, 0.03, 0.03, 0.02, 0.02] },
-  supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 2.2, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900, fcRange: 2300, hp: 330, top: 5500, wobble: 2, vary: 0.6 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
-  p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 2.5, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200, fcRange: 3000, hp: 450, top: 6500, wobble: 4, vary: 0.8 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
-  pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 1.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600, fcRange: 1800, hp: 220, top: 4000, wobble: 2.5, vary: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
-  hauler: { cyl: 6, wk: { header: 0.9, pipe: 4.5, muffle: 0.55, rough: 2.5, uneven: 0.03, body: 0.7, fall: 1.6, rise: 0.25, nzT: 1.8, fcBase: 500, fcRange: 1400, hp: 180, top: 3200, wobble: 3, vary: 0.8 },  idle: 600, red: 2600, tone: 1.2, rough: 0.65, sub: 0.2, cut: 650, turbo: 0.35, vol: 1.1 },       // big diesel
+  supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 0.7, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900.0, fcRange: 2300.0, hp: 330.0, top: 5500.0, wobble: 2.0, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 9, pkQ: 0.7 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
+  p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 1.0, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200.0, fcRange: 3000.0, hp: 450.0, top: 6500.0, wobble: 4.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 2500, pkG: 7, pkQ: 0.7 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
+  pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600.0, fcRange: 1800.0, hp: 220.0, top: 4000.0, wobble: 2.5, vary: 0.7, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
+  hauler: { cyl: 6, wk: { header: 0.9, pipe: 4.5, muffle: 0.55, rough: 1.0, uneven: 0.03, body: 0.7, fall: 1.6, rise: 0.25, nzT: 1.8, fcBase: 500.0, fcRange: 1400.0, hp: 180.0, top: 3200.0, wobble: 3.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 600, red: 2600, tone: 1.2, rough: 0.65, sub: 0.2, cut: 650, turbo: 0.35, vol: 1.1 },       // big diesel
 };
 // Engine voice modelled like a real exhaust: every firing is a short pressure pulse (a thump plus a
 // burst of combustion noise) with its own small variations; pulses travel through a header pipe and
@@ -1741,6 +1741,9 @@ function renderEngineLoop(c, rpm, load, sr, secs) {
   let phase = 0, next = 1, k = 0, wob = 0, i1 = 0, i2 = 0, l1 = 0, l2 = 0, m1 = 0, m2 = 0, m3 = 0, dcx = 0, dcy = 0;
   let h2 = 0, h2x = 0; const hpK = Math.exp(-2 * Math.PI * (c.hp ?? 20) / sr);
   let t1 = 0, t2 = 0; const tk = Math.exp(-2 * Math.PI * Math.min(c.top ?? 16000, sr * 0.45) / sr);
+  const pA = Math.pow(10, (c.pkG ?? 0) / 40), pw = 2 * Math.PI * (c.pkF ?? 2500) / sr, pal = Math.sin(pw) / (2 * (c.pkQ ?? 0.9));
+  const pb0 = 1 + pal * pA, pb1 = -2 * Math.cos(pw), pb2 = 1 - pal * pA, pa0 = 1 + pal / pA, pa2 = 1 - pal / pA;
+  let px1 = 0, px2 = 0, py1 = 0, py2 = 0;
   for (let n = 0; n < len; n++) {
     wob = wob * 0.9995 + (Math.random() * 2 - 1) * 0.0005;
     phase += fire * (1 + wob * (c.wobble ?? 3));
@@ -1754,13 +1757,14 @@ function renderEngineLoop(c, rpm, load, sr, secs) {
       const q = pulses[j]; x += (q.f - q.r) * 1.6 + q.nz * (Math.random() * 2 - 1);
       q.r *= kRise; q.f *= kFall; q.nz *= kN; if (++q.t > sr * 0.02) pulses.splice(j, 1);
     }
-    const r1 = b1[(i1 - d1 + 2048) & 2047]; l1 += 0.45 * (r1 - l1); const y1 = x - 0.55 * l1; b1[i1] = y1; i1 = (i1 + 1) & 2047;   // header pipe
-    const r2 = b2[(i2 - d2 + 8192) & 8191]; l2 += 0.35 * (r2 - l2); const y2 = y1 - 0.5 * l2; b2[i2] = y2; i2 = (i2 + 1) & 8191;  // main pipe
+    const r1 = b1[(i1 - d1 + 2048) & 2047]; l1 += 0.45 * (r1 - l1); const y1 = x - (c.r1 ?? 0.55) * l1; b1[i1] = y1; i1 = (i1 + 1) & 2047;   // header pipe
+    const r2 = b2[(i2 - d2 + 8192) & 8191]; l2 += 0.35 * (r2 - l2); const y2 = y1 - (c.r2 ?? 0.5) * l2; b2[i2] = y2; i2 = (i2 + 1) & 8191;  // main pipe
     m1 = am * m1 + (1 - am) * y2; m2 = am * m2 + (1 - am) * m1; m3 = am * m3 + (1 - am) * m2;                                   // muffler
     const mix = m2 * 0.6 + m3 * 0.4 * c.body; dcy = mix - dcx + hpK * dcy; dcx = mix;                                         // low cut
     h2 = dcy - h2x + hpK * h2; h2x = dcy;
     t1 = tk * t1 + (1 - tk) * Math.tanh(h2 * 2.2); t2 = tk * t2 + (1 - tk) * t1;                                                 // top-end roll-off
-    buf[n] = t2 * 0.7;
+    const py = (pb0 * t2 + pb1 * px1 + pb2 * px2 - pb1 * py1 - pa2 * py2) / pa0; px2 = px1; px1 = t2; py2 = py1; py1 = py;   // presence
+    buf[n] = py * 0.7;
   }
   const out = new Float32Array(outLen);                                                                                           // seamless loop
   for (let n = 0; n < outLen; n++) out[n] = buf[n];
