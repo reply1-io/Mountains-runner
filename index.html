@@ -87,6 +87,8 @@ button{font:inherit;color:inherit}
 .tach::after{content:"";position:absolute;right:0;top:0;bottom:0;width:12%;background:rgba(255,95,74,.45)}
 #rpmv{font-family:var(--display);font-size:13px;font-variant-numeric:tabular-nums;min-width:5ch;text-align:right}
 #gear{pointer-events:auto;cursor:pointer;background:transparent;color:inherit}
+.gbx{pointer-events:auto;cursor:pointer;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.gbx:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .shiftbtn{display:none}
 body.touch.manual .shiftbtn{display:block}
 #bUp{left:calc(var(--gl) + 84px);bottom:calc(var(--gb) + 172px)}
@@ -175,7 +177,11 @@ h1 span{display:block;color:transparent;-webkit-text-stroke:2px var(--ink)}
 .card .kind{font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
 .stat{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .pips{display:flex;gap:3px}.pips i{flex:1;height:5px;border-radius:2px;background:rgba(255,255,255,.14)}.pips i.f{background:var(--accent)}
-.campform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.campform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.seg{display:flex;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);padding:3px;gap:3px;box-sizing:border-box}
+.seg button{flex:1;border:0;border-radius:7px;background:transparent;font-family:var(--display);font-weight:700;font-size:14px;cursor:pointer;min-width:0}
+.seg button.on{background:var(--accent);color:#10201a}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .field input{height:44px;box-sizing:border-box;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:0 12px;font:700 16px var(--display);-webkit-user-select:text;user-select:text;min-width:0;width:100%}
@@ -253,7 +259,7 @@ body.touch .keys{display:none}
     <div class="vrow"><span id="vehName">Ridgeback 4x4</span><span id="surface">Asphalt</span></div>
     <div id="driveinfo" style="display:flex;flex-direction:column;gap:8px">
       <div class="speedrow"><b id="speed">0</b><span class="lbl">km/h</span><button id="gear" title="Tap to switch manual / automatic (M)">N</button></div>
-      <div class="tachrow"><div class="tach"><i id="tach"></i></div><b id="rpmv">0</b><span class="lbl" id="gbx">Auto</span></div>
+      <div class="tachrow"><div class="tach"><i id="tach"></i></div><b id="rpmv">0</b><button id="gbx" class="gbx" type="button" title="Switch manual / automatic (M)">Auto</button></div>
       <div class="modes">
         <button class="mode" data-mode="2H">2H</button>
         <button class="mode" data-mode="4H">4H</button>
@@ -290,6 +296,7 @@ body.touch .keys{display:none}
     <p class="lede">Cruise the valley highway, crawl the rocky ridge trail up to Lookout Peak, and head back to your own camp. Bring a friend along for the ride, or step out and walk anywhere.</p>
     <div class="campform">
       <div class="field"><label for="campName">Name your camp</label><input id="campName" maxlength="22" autocomplete="off" spellcheck="false" placeholder="Pine Hollow Camp"></div>
+      <div class="field"><span class="lbl">E30 gearbox</span><div class="seg" id="gearSeg" role="group" aria-label="E30 gearbox"><button type="button" data-g="manual">Manual</button><button type="button" data-g="auto">Automatic</button></div></div>
       <div class="field"><label for="friendName">Your friend's name</label><input id="friendName" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Sam"></div>
     </div>
     <div class="soundrow">
@@ -332,6 +339,7 @@ const store = {
   get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } },
 };
+let gearPref = store.get('mr.gear', 'manual'); // E30 gearbox: 'manual' or 'auto'
 const names = { camp: store.get('mr.camp', 'Pine Hollow Camp'), friend: store.get('mr.friend', 'Sam') };
 const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no haptics */ } };
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -1106,7 +1114,7 @@ function makeVehicle(key, color) {
     x: 0, z: 0, y: 0, yaw: 0, pitch: 0, roll: 0, speed: 0, vy: 0, air: false, steer: 0,
     mode: s.awd ? '4H' : '2H', damage: 0, lights: false, ai: null, wheelsDown: 4, surf: 0, slip: false, brakeOn: false,
     tPitch: 0, tRoll: 0, gY: 0, art: [0, 0, 0, 0], belly: 0, flipped: 0, latAcc: 0, accel: 0, rpm: 0, rpmS: 0.12, gear: 'N', boost: 0, throttle: 0, bovReady: false, airT: 0, airMax: 0,
-    manual: key === 'coupe', mg: 1, shiftT: 0, rpmM: 0.12, limiter: false,
+    manual: key === 'coupe' && gearPref === 'manual', mg: 1, shiftT: 0, rpmM: 0.12, limiter: false,
   };
   scene.add(g); vehicles.push(v); return v;
 }
@@ -1715,15 +1723,15 @@ async function analyseEngineFile(file) {
 // exhaust note, a sub-octave for V8 burble, firing-pulsed noise for grit, saturation, and a
 // throttle-opened low-pass. Turbo cars add a spool whistle and a blow-off valve.
 const ENGINES = {
-  ridgeback: { cyl: 6, wk: { header: 0.6, pipe: 3.0, muffle: 0.45, rough: 0.9, uneven: 0.02, body: 0.5, fall: 1.4, rise: 0.2, nzT: 1.6, fcBase: 700.0, fcRange: 1800.0, hp: 250.0, top: 4200.0, wobble: 3.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 7, pkQ: 0.7 },  idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
+  ridgeback: { cyl: 6, wk: { header: 0.6, pipe: 3.0, muffle: 0.45, rough: 0.9, uneven: 0.02, body: 0.5, fall: 1.4, rise: 0.2, nzT: 1.6, fcBase: 700.0, fcRange: 1800.0, hp: 250.0, top: 4200.0, wobble: 0.8, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 7, pkQ: 0.7 },  idle: 750, red: 4300, tone: 1.05, rough: 0.55, sub: 0.15, cut: 900, turbo: 0.25, vol: 1 },   // turbo-diesel straight-six
   // E30 M3-style S14-type four: 2.3 litres, no turbo, revs to 7,500. 4-2-1 headers and an
   // individual-throttle-body intake give the sharp, raspy howl
-  coupe: { cyl: 4, wk: { header: 0.75, pipe: 2.2, muffle: 0.12, rough: 0.55, uneven: 0.01, body: 0.8, fall: 0.85, rise: 0.12, nzT: 1.0, fcBase: 900, fcRange: 3600, hp: 230, top: 8500, wobble: 2, vary: 0.6, r1: 0.3, r2: 0.25, pkF: 1500, pkG: 9, pkQ: 0.8 },
+  coupe: { cyl: 4, wk: { header: 0.75, pipe: 2.2, muffle: 0.12, rough: 0.4, uneven: 0.01, body: 0.8, fall: 0.85, rise: 0.12, nzT: 1.0, fcBase: 900, fcRange: 3600, hp: 230, top: 8500, wobble: 0.55, vary: 0.4, r1: 0.15, r2: 0.12, pkF: 1500, pkG: 5, pkQ: 0.6 },
     idle: 900, red: 7500, tone: 0.85, rough: 0.35, sub: 0, cut: 2600, turbo: 0, vol: 1, pops: true },
-  supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 0.7, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900.0, fcRange: 2300.0, hp: 330.0, top: 5500.0, wobble: 2.0, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 9, pkQ: 0.7 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
-  p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 1.0, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200.0, fcRange: 3000.0, hp: 450.0, top: 6500.0, wobble: 4.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 2500, pkG: 7, pkQ: 0.7 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
-  pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600.0, fcRange: 1800.0, hp: 220.0, top: 4000.0, wobble: 2.5, vary: 0.7, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
-  hauler: { cyl: 6, wk: { header: 0.9, pipe: 4.5, muffle: 0.55, rough: 1.0, uneven: 0.03, body: 0.7, fall: 1.6, rise: 0.25, nzT: 1.8, fcBase: 500.0, fcRange: 1400.0, hp: 180.0, top: 3200.0, wobble: 3.0, vary: 0.8, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 600, red: 2600, tone: 1.2, rough: 0.65, sub: 0.2, cut: 650, turbo: 0.35, vol: 1.1 },       // big diesel
+  supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 0.7, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900.0, fcRange: 2300.0, hp: 330.0, top: 5500.0, wobble: 0.5, vary: 0.4, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 9, pkQ: 0.7 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
+  p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 1.0, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200.0, fcRange: 3000.0, hp: 450.0, top: 6500.0, wobble: 1.0, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 2500, pkG: 7, pkQ: 0.7 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
+  pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600.0, fcRange: 1800.0, hp: 220.0, top: 4000.0, wobble: 0.7, vary: 0.5, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
+  hauler: { cyl: 6, wk: { header: 0.9, pipe: 4.5, muffle: 0.55, rough: 1.0, uneven: 0.03, body: 0.7, fall: 1.6, rise: 0.25, nzT: 1.8, fcBase: 500.0, fcRange: 1400.0, hp: 180.0, top: 3200.0, wobble: 0.9, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 600, red: 2600, tone: 1.2, rough: 0.65, sub: 0.2, cut: 650, turbo: 0.35, vol: 1.1 },       // big diesel
 };
 // Engine voice modelled like a real exhaust: every firing is a short pressure pulse (a thump plus a
 // burst of combustion noise) with its own small variations; pulses travel through a header pipe and
@@ -1750,7 +1758,7 @@ function renderEngineLoop(c, rpm, load, sr, secs) {
     if (phase >= next) {                       // a cylinder fires: thump + burst of combustion noise
       phase -= next; const i = k; k = (k + 1) % c.cyl; next = 1 + offs[k];
       const vr = c.vary ?? 0.3, a = (0.22 + 0.78 * load) * gains[i] * (1 - vr / 2 + Math.random() * vr);  // no two firings are identical
-      if (pulses.length < 24) pulses.push({ r: a, f: a, nz: a * c.rough, t: 0 });
+      if (pulses.length < 24) pulses.push({ r: a, f: a, nz: a * c.rough * (1 - 0.4 * Math.min(1, rpm / 8000)), t: 0 }); // less breath as revs climb
     }
     let x = 0;
     for (let j = pulses.length - 1; j >= 0; j--) {
@@ -1831,6 +1839,7 @@ const sfx = (() => {
     init() { init(); return Promise.resolve(); },
     get on() { return on; },
     get mode() { return E && E.bank ? 'exhaust model' : 'basic'; },
+    get debug() { return E && E.bank ? { rpms: E.bank.rpms, voices: E.bank.voices.map(x => ({ rpm: x.rpm, on: x.on, len: x.src.buffer.length, sr: x.src.buffer.sampleRate })) } : null; },
     toggle() { on = !on; if (E) { E.master.gain.value = 0; E.fx.gain.value = on ? 1 : 0; } return on; },
     engine(v) {
       if (!ctx || !E) return;
@@ -1858,11 +1867,11 @@ const sfx = (() => {
       }
       if (p.wk && (!E.bank || E.bank.key !== v.key)) { // build this engine's loops: several rpm points, on and off throttle
         if (E.bank) E.bank.voices.forEach(x => { try { x.src.stop(); } catch (e) { /* stopped */ } });
-        const c = Object.assign({ cyl: p.cyl }, p.wk), rpms = [], N = 5, voices = [], bus = ctx.createGain();
+        const c = Object.assign({ cyl: p.cyl }, p.wk), rpms = [], N = 9, voices = [], bus = ctx.createGain();
         bus.gain.value = 0; bus.connect(E.master);
         for (let i = 0; i < N; i++) rpms.push(Math.round(p.idle + (p.red - p.idle) * Math.pow(i / (N - 1), 0.85)));
         rpms.forEach((r, i) => [0.15, 1].forEach((ld, j) => {
-          const data = renderEngineLoop(c, r, ld, ctx.sampleRate, 1.1), b = ctx.createBuffer(1, data.length, ctx.sampleRate); b.getChannelData(0).set(data);
+          const data = renderEngineLoop(c, r, ld, ctx.sampleRate, 0.9), b = ctx.createBuffer(1, data.length, ctx.sampleRate); b.getChannelData(0).set(data);
           const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = b; src.loop = true; g.gain.value = 0;
           src.connect(g); g.connect(bus); src.start(t, Math.random() * 0.5); voices.push({ src, g, rpm: r, on: j === 1 });
         }));
@@ -1870,7 +1879,8 @@ const sfx = (() => {
       }
       if (E.bank) {
         const B = E.bank, rs = B.rpms; let i = 0; while (i < rs.length - 2 && rpm > rs[i + 1]) i++;
-        const w = clamp((rpm - rs[i]) / (rs[i + 1] - rs[i]), 0, 1), on = clamp(0.15 + thr * 0.85, 0, 1);
+        // play mostly one loop at a time (barely re-pitched); only blend in the middle of each step so loops never smear into a hollow phasing sound
+        const w0 = clamp((rpm - rs[i]) / (rs[i + 1] - rs[i]), 0, 1), w = clamp((w0 - 0.3) / 0.4, 0, 1), on = clamp(0.15 + thr * 0.85, 0, 1);
         for (const x of B.voices) {
           const wr = x.rpm === rs[i] ? 1 - w : x.rpm === rs[i + 1] ? w : 0, wl = x.on ? on : 1 - on;
           set(x.g.gain, Math.sqrt(wr * wl), 0.04);
@@ -2013,6 +2023,7 @@ function shift(d) {
 function toggleManual() {
   const v = player.vehicle; if (!v) return;
   v.manual = !v.manual;
+  if (v.key === 'coupe') { gearPref = v.manual ? 'manual' : 'auto'; store.set('mr.gear', gearPref); showGearPref(); }
   if (v.manual) { const maxV = v.s.max / 3.6; v.mg = 1; while (v.mg < 5 && v.speed / (maxV * GEARS[v.mg - 1]) > 0.85) v.mg++; }
   toast(v.manual ? '<b>Manual</b>: X shift up · Z shift down' : '<b>Automatic</b> gearbox', 1600);
 }
@@ -2034,6 +2045,13 @@ document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () =
 }));
 $('tCam').addEventListener('click', cycleCam);
 $('gear').addEventListener('click', () => state === 'play' && toggleManual());
+$('gbx').addEventListener('click', () => state === 'play' && toggleManual());
+function showGearPref() { document.querySelectorAll('#gearSeg button').forEach(b => { const on = b.dataset.g === gearPref; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
+document.querySelectorAll('#gearSeg button').forEach(b => b.addEventListener('click', () => {
+  gearPref = b.dataset.g; store.set('mr.gear', gearPref); showGearPref();
+  const e30 = vehicles.find(u => u.key === 'coupe' && !u.ai); if (e30) { e30.manual = gearPref === 'manual'; e30.mg = 1; }
+}));
+showGearPref();
 $('tLights').addEventListener('click', toggleLights);
 $('tTime').addEventListener('click', skipHour);
 $('tSound').addEventListener('click', () => { sfx.init(); $('tSound').classList.toggle('on', sfx.toggle()); });
@@ -2176,7 +2194,7 @@ function updateHUD(dt) {
     $('tach').style.width = Math.round(rn * 100) + '%'; $('tach').style.background = rn > 0.88 ? 'var(--danger)' : 'var(--accent)';
     $('rpmv').textContent = (Math.round((ep.idle + (ep.red - ep.idle) * rn) / 50) * 50).toLocaleString('en-US');
     const man = v.manual && v.mode !== '4L';
-    $('gbx').textContent = man ? (isTouch ? 'Manual' : 'Manual · Z X') : 'Auto';
+    const gl = man ? 'Manual ⇄' : 'Auto ⇄'; if ($('gbx').textContent !== gl) $('gbx').textContent = gl;
     document.body.classList.toggle('manual', man);
     const tb = !!v.s.turbo; for (const id of ['boostL', 'boostB', 'boostV']) $(id).hidden = !tb;
     if (tb) { $('boost').style.width = Math.round(v.boost * 100) + '%'; $('boostV').textContent = Math.round(v.boost * v.s.turbo.psi) + ' psi'; }
