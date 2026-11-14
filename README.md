@@ -4,8 +4,8 @@
 
 ## What's in it
 - **Big map**: 2.4 km across, ringed by snowy mountains. Only the ground and trees near you are drawn, so it stays smooth on phones.
-- **Windy valley highway**: a 4.7 km paved loop with about 40 bends and S-curves, lane markings, reflector posts, and six other vehicles driving on it.
-- **Ridge trail**: a rocky dirt trail with switchbacks up to Lookout Peak. Use 4L low range to crawl over the rocks.
+- **Windy valley dirt road**: a 4.7 km dirt loop with wheel ruts, about 40 bends and S-curves, reflector posts, and six other vehicles driving on it.
+- **Ridge road**: a narrow paved road with a dashed centre line, climbing switchbacks up to Lookout Peak.
 - **Big air**: floaty air physics give big hang time over mountain crests and bumps, with an airtime and height callout when you land.
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
