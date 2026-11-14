@@ -3,7 +3,8 @@
 **Mountains Runner** is a low-poly, open-world mountain driving game that runs in the browser. Open `index.html` to play. There is nothing to install.
 
 ## What's in it
-- **Valley highway**: a paved loop with lane markings, reflector posts, and other vehicles driving on it.
+- **Big map**: 2.4 km across, ringed by snowy mountains. Only the ground and trees near you are drawn, so it stays smooth on phones.
+- **Windy valley highway**: a 4.7 km paved loop with about 40 bends and S-curves, lane markings, reflector posts, and six other vehicles driving on it.
 - **Ridge trail**: a rocky dirt trail with switchbacks up to Lookout Peak. Use 4L low range to crawl over the rocks.
 - **Big air**: floaty air physics give big hang time over mountain crests and bumps, with an airtime and height callout when you land.
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.

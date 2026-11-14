@@ -360,13 +360,16 @@ function vnoise(x, z) {
 function fbm(x, z, o = 4) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i++) { s += a * vnoise(x * f, z * f); f *= 2.03; a *= 0.5; } return s; }
 
 /* ------------------------------------------------------------------ world shape */
-const WORLD = 1000, HALF = 500, SEG = 250, CELL = WORLD / SEG, ALT0 = 1180;
-const PEAK = { x: 40, z: -30 };
+const WORLD = 2400, HALF = 1200, SEG = 400, CELL = WORLD / SEG, ALT0 = 1180;
+const S = WORLD / 1000;                    // world scale vs. the original 1 km map
+const EDGE = HALF - 15;                    // how far out you can drive or walk
+const PEAK0 = { x: 40, z: -30 }, PEAK = { x: PEAK0.x * S, z: PEAK0.z * S };
 function naturalH(x, z) {
-  const r0 = Math.hypot(x, z), rp = Math.hypot(x - PEAK.x, z - PEAK.z);
-  let h = (fbm(x * 0.006 + 10, z * 0.006 - 3, 5) - 0.45) * 34;
-  h += 100 * Math.exp(-((rp / 125) ** 2));
-  h += Math.pow(Math.max(0, (r0 - 330) / 170), 1.6) * 150 * (0.6 + 0.8 * fbm(x * 0.01, z * 0.01, 3));
+  const u = x / S, w = z / S, r0 = Math.hypot(u, w), rp = Math.hypot(u - PEAK0.x, w - PEAK0.z);
+  let h = (fbm(u * 0.006 + 10, w * 0.006 - 3, 5) - 0.45) * 48;          // big rolling hills
+  h += (fbm(x * 0.006 + 31, z * 0.006 + 7, 3) - 0.45) * 14;              // local detail
+  h += 150 * Math.exp(-((rp / 125) ** 2));                                // Lookout Peak
+  h += Math.pow(Math.max(0, (r0 - 330) / 170), 1.6) * 190 * (0.6 + 0.8 * fbm(u * 0.01, w * 0.01, 3)); // ring of mountains
   return h;
 }
 
@@ -399,16 +402,21 @@ class PathIndex {
 }
 
 // Valley highway: a closed loop around the central peak
-const ROAD_N = 760, ROAD_HALF = 5;
+const ROAD_N = 3600, ROAD_HALF = 5;
+const roadR = t => 640 + 80 * Math.sin(3 * t) + 45 * Math.sin(8 * t + 1) + 26 * Math.sin(13 * t + 2) + 12 * Math.sin(21 * t + 0.5);
 const road = [];
 for (let i = 0; i < ROAD_N; i++) {
-  const t = i / ROAD_N * Math.PI * 2, R = 235 + 38 * Math.sin(2 * t) + 16 * Math.sin(5 * t + 1);
+  const t = i / ROAD_N * Math.PI * 2, R = roadR(t);
   road.push({ x: Math.cos(t) * R, z: Math.sin(t) * R, y: 0 });
 }
 road.forEach(p => p.y = naturalH(p.x, p.z));
-for (let pass = 0; pass < 4; pass++) {
-  const ys = road.map(p => p.y);
-  for (let i = 0; i < ROAD_N; i++) { let s = 0; for (let k = -18; k <= 18; k++) s += ys[(i + k + ROAD_N) % ROAD_N]; road[i].y = s / 37; }
+{ // smooth the road's height over about ±40 m so it climbs and dips like a real road
+  let len = 0; for (let i = 0; i < ROAD_N; i++) { const a = road[i], b = road[(i + 1) % ROAD_N]; len += Math.hypot(b.x - a.x, b.z - a.z); }
+  const K = Math.max(4, Math.round(40 / (len / ROAD_N)));
+  for (let pass = 0; pass < 4; pass++) {
+    const ys = road.map(p => p.y);
+    for (let i = 0; i < ROAD_N; i++) { let s = 0; for (let k = -K; k <= K; k++) s += ys[(i + k + ROAD_N) % ROAD_N]; road[i].y = s / (2 * K + 1); }
+  }
 }
 const roadS = [0];
 for (let i = 1; i <= ROAD_N; i++) { const a = road[i - 1], b = road[i % ROAD_N]; roadS.push(roadS[i - 1] + Math.hypot(b.x - a.x, b.z - a.z)); }
@@ -423,7 +431,14 @@ function roadAt(s) {
 }
 
 // Ridge trail: from the highway up switchbacks to Lookout Peak
-const trailCtrl = [[249, 0], [228, 22], [205, 40], [184, 18], [176, -8], [152, -32], [134, -6], [126, 22], [104, 36], [92, 6], [88, -28], [70, -52], [52, -44], [40, -30]];
+const trailCtrl = (() => {
+  const st = road[0], legs = 11, dx = PEAK.x - st.x, dz = PEAK.z - st.z, L = Math.hypot(dx, dz), nx = -dz / L, nz = dx / L, pts = [];
+  for (let i = 0; i <= legs; i++) {
+    const f = i / legs, side = i === 0 || i === legs ? 0 : (i % 2 ? 1 : -1) * 70 * (1 - 0.5 * f);
+    pts.push([st.x + dx * f + nx * side, st.z + dz * f + nz * side]);
+  }
+  return pts;
+})();
 const trail = [];
 for (let i = 0; i < trailCtrl.length - 1; i++) {
   const p0 = trailCtrl[Math.max(i - 1, 0)], p1 = trailCtrl[i], p2 = trailCtrl[i + 1], p3 = trailCtrl[Math.min(i + 2, trailCtrl.length - 1)];
@@ -434,7 +449,7 @@ for (let i = 0; i < trailCtrl.length - 1; i++) {
     trail.push({ x: f(p0[0], p1[0], p2[0], p3[0]), z: f(p0[1], p1[1], p2[1], p3[1]), y: 0 });
   }
 }
-trail.push({ x: 40, z: -30, y: 0 });
+trail.push({ x: PEAK.x, z: PEAK.z, y: 0 });
 trail.forEach(p => p.y = naturalH(p.x, p.z));
 for (let pass = 0; pass < 3; pass++) {
   const ys = trail.map(p => p.y);
@@ -448,7 +463,12 @@ const roadIdx = new PathIndex(road, true, 20, 28);
 const trailIdx = new PathIndex(trail, false, 20, 16);
 const SUMMIT = trail[trail.length - 1];
 
-const CAMP = { x: 288, z: 36, y: naturalH(288, 36) };
+const CAMP = (() => {
+  const i = Math.round(ROAD_N * 0.03), a = road[i], b = road[i + 1];
+  let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz); let nx = -tz / l, nz = tx / l;
+  if (Math.hypot(a.x + nx, a.z + nz) < Math.hypot(a.x, a.z)) { nx = -nx; nz = -nz; }   // outside the loop
+  const x = a.x + nx * 34, z = a.z + nz * 34; return { x, z, y: naturalH(x, z) };
+})();
 
 /* jump ramps: none placed right now. Add entries like { s: 0.3, len: 18, wid: 7, h: 4.6, off: 19 } to bring them back */
 const RAMPS = [
@@ -470,15 +490,15 @@ function rampH(x, z) {
 
 /* heightfield */
 const NV = SEG + 1;
-const H = new Float32Array(NV * NV);
+const H = new Float32Array(NV * NV), DR = new Float32Array(NV * NV), DT = new Float32Array(NV * NV);
 for (let j = 0; j < NV; j++) for (let i = 0; i < NV; i++) {
   const x = -HALF + i * CELL, z = -HALF + j * CELL;
   let h = naturalH(x, z);
-  const t = trailIdx.nearest(x, z);
+  const t = trailIdx.nearest(x, z); DT[j * NV + i] = t.d;
   if (t.d < 16) h = lerp(h, t.y, 1 - smooth(3.2, 13, t.d));
   const dc = Math.hypot(x - CAMP.x, z - CAMP.z);
   if (dc < 42) h = lerp(h, CAMP.y, 1 - smooth(22, 40, dc));
-  const r = roadIdx.nearest(x, z);
+  const r = roadIdx.nearest(x, z); DR[j * NV + i] = r.d;
   if (r.d < 28) h = lerp(h, r.y, 1 - smooth(8.5, 26, r.d));
   H[j * NV + i] = h;
 }
@@ -514,7 +534,7 @@ function bumpH(x, z) {
   return m;
 }
 const groundH = (x, z) => gridH(x, z) + bumpH(x, z) + rampH(x, z);
-const snowLine = (x, z) => 88 + fbm(x * 0.02, z * 0.02, 2) * 22;
+const snowLine = (x, z) => 125 + fbm(x * 0.02, z * 0.02, 2) * 30;
 
 const SURF = [
   { name: 'Asphalt', grip: 1.0, roll: 0.15 },
@@ -560,41 +580,50 @@ function mesh(geo, mat, x, y, z, parent, shadow = true) {
 }
 const box = (w, h, d, mat, x, y, z, parent) => mesh(new T.BoxGeometry(w, h, d), mat, x, y, z, parent);
 
-/* terrain mesh */
+/* terrain mesh: built in chunks so only the ground (and trees) near you are drawn */
+const CHUNKS = 8, CHUNK = SEG / CHUNKS, CHUNK_M = WORLD / CHUNKS, chunks = [];
+const chunkOf = (x, z) => chunks[clamp(Math.floor((z + HALF) / CHUNK_M), 0, CHUNKS - 1) * CHUNKS + clamp(Math.floor((x + HALF) / CHUNK_M), 0, CHUNKS - 1)];
 {
-  const geo = new T.PlaneGeometry(WORLD, WORLD, SEG, SEG);
-  geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position;
-  for (let k = 0; k < pos.count; k++) pos.setY(k, H[k]);
-  const g = geo.toNonIndexed(); g.computeVertexNormals();
-  const p = g.attributes.position, n = g.attributes.normal, cols = new Float32Array(p.count * 3);
+  const mat = new T.MeshLambertMaterial({ vertexColors: true });
   const c = new T.Color(), tmp = new T.Color();
   const C = {
     gravel: new T.Color(0x8b826e), dirt: new T.Color(0x7d5c3e), camp: new T.Color(0x8f8a5a), snow: new T.Color(0xe9eff2),
     rock: new T.Color(0x6e6a66), grassA: new T.Color(0x4b7a37), grassB: new T.Color(0x6f9444), dry: new T.Color(0x93995a), alp: new T.Color(0x7b8a62),
   };
-  for (let f = 0; f < p.count; f += 3) {
-    const x = (p.getX(f) + p.getX(f + 1) + p.getX(f + 2)) / 3, y = (p.getY(f) + p.getY(f + 1) + p.getY(f + 2)) / 3, z = (p.getZ(f) + p.getZ(f + 1) + p.getZ(f + 2)) / 3;
-    const ny = n.getY(f), dR = roadIdx.nearest(x, z).d, dT = trailIdx.nearest(x, z).d;
-    if (dR < 8.5) c.copy(C.gravel);
-    else if (dT < 3.8) c.copy(C.dirt);
-    else if (Math.hypot(x - CAMP.x, z - CAMP.z) < 21) c.copy(C.camp);
-    else if (y > snowLine(x, z) && ny > 0.55) c.copy(C.snow);
-    else if (ny < 0.74) c.copy(C.rock).lerp(tmp.copy(C.alp), clamp((ny - 0.6) * 4, 0, 1) * 0.4);
-    else {
-      const m = fbm(x * 0.012, z * 0.012, 3);
-      c.copy(C.grassA).lerp(C.grassB, m).lerp(C.dry, smooth(0.55, 0.75, fbm(x * 0.004 + 7, z * 0.004, 2)) * 0.7);
-      if (y > 60) c.lerp(C.alp, smooth(60, 85, y));
+  const V = (i, j) => [-HALF + i * CELL, H[j * NV + i], -HALF + j * CELL];
+  for (let cj = 0; cj < CHUNKS; cj++) for (let ci = 0; ci < CHUNKS; ci++) {
+    const pos = new Float32Array(CHUNK * CHUNK * 18), col = new Float32Array(CHUNK * CHUNK * 18); let q = 0;
+    const tri = (A, B, Cc, dr, dt, f) => {
+      const x = (A[0] + B[0] + Cc[0]) / 3, y = (A[1] + B[1] + Cc[1]) / 3, z = (A[2] + B[2] + Cc[2]) / 3;
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], vx = Cc[0] - A[0], vy = Cc[1] - A[1], vz = Cc[2] - A[2];
+      const nx = uy * vz - uz * vy, ny0 = uz * vx - ux * vz, nz = ux * vy - uy * vx, ny = Math.abs(ny0) / Math.hypot(nx, ny0, nz);
+      if (dr < 8.5) c.copy(C.gravel);
+      else if (dt < 3.8) c.copy(C.dirt);
+      else if (Math.hypot(x - CAMP.x, z - CAMP.z) < 21) c.copy(C.camp);
+      else if (y > snowLine(x, z) && ny > 0.55) c.copy(C.snow);
+      else if (ny < 0.74) c.copy(C.rock).lerp(tmp.copy(C.alp), clamp((ny - 0.6) * 4, 0, 1) * 0.4);
+      else {
+        const m = fbm(x * 0.012, z * 0.012, 3);
+        c.copy(C.grassA).lerp(C.grassB, m).lerp(C.dry, smooth(0.55, 0.75, fbm(x * 0.004 + 7, z * 0.004, 2)) * 0.7);
+        if (y > 85) c.lerp(C.alp, smooth(85, 120, y));
+      }
+      c.multiplyScalar(0.92 + hash2(f, 7) * 0.12);
+      for (const P of [A, B, Cc]) { pos[q] = P[0]; pos[q + 1] = P[1]; pos[q + 2] = P[2]; col[q] = c.r; col[q + 1] = c.g; col[q + 2] = c.b; q += 3; }
+    };
+    for (let j = cj * CHUNK; j < (cj + 1) * CHUNK; j++) for (let i = ci * CHUNK; i < (ci + 1) * CHUNK; i++) {
+      const a = V(i, j), b = V(i, j + 1), cc = V(i + 1, j + 1), d = V(i + 1, j), k = j * NV + i;
+      const dr = (DR[k] + DR[k + 1] + DR[k + NV] + DR[k + NV + 1]) / 4, dt = (DT[k] + DT[k + 1] + DT[k + NV] + DT[k + NV + 1]) / 4;
+      tri(a, b, d, dr, dt, k * 2); tri(b, cc, d, dr, dt, k * 2 + 1);   // same diagonal as gridH()
     }
-    const j = 0.92 + hash2(f, 7) * 0.12; c.multiplyScalar(j);
-    for (let k = 0; k < 3; k++) { cols[(f + k) * 3] = c.r; cols[(f + k) * 3 + 1] = c.g; cols[(f + k) * 3 + 2] = c.b; }
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals();
+    const grp = new T.Group(), m = new T.Mesh(g, mat); m.receiveShadow = true; grp.add(m); scene.add(grp);
+    chunks.push({ grp, x: -HALF + (ci + 0.5) * CHUNK_M, z: -HALF + (cj + 0.5) * CHUNK_M, trees: [] });
   }
-  g.setAttribute('color', new T.BufferAttribute(cols, 3));
-  const terrain = new T.Mesh(g, new T.MeshLambertMaterial({ vertexColors: true }));
-  terrain.receiveShadow = true; scene.add(terrain);
   // far ring so the world edge never shows
-  const ring = new T.Mesh(new T.RingGeometry(700, 1500, 32, 1), M(0x55624d)); ring.rotation.x = -Math.PI / 2; ring.position.y = 120; scene.add(ring);
+  const ring = new T.Mesh(new T.RingGeometry(HALF + 150, HALF * 3, 32, 1), M(0x55624d)); ring.rotation.x = -Math.PI / 2; ring.position.y = 150; scene.add(ring);
 }
+const DRAW_DIST = 1000;
+function updateChunks(cx, cz) { for (const k of chunks) k.grp.visible = Math.hypot(k.x - cx, k.z - cz) < DRAW_DIST; }
 
 /* ribbons for road surface, markings and trail */
 function ribbon(pts, closed, w0, w1, yFn, mat, dash) {
@@ -640,7 +669,7 @@ function eachObs(x, z, fn) { const l = obsGrid.get(Math.floor(x / 10) * 100003 +
 const dummy = new T.Object3D(), tmpCol = new T.Color();
 function placeOK(x, z, dRoad, dTrail, dCamp) {
   for (const r of RAMPS) if (Math.hypot(x - (r.x + Math.sin(r.yaw) * r.len / 2), z - (r.z + Math.cos(r.yaw) * r.len / 2)) < r.len * 0.75 + 18) return false; // keep run-ups and landings clear
-  if (Math.hypot(x, z) > 480) return false;
+  if (Math.hypot(x, z) > HALF - 20) return false;
   if (roadIdx.nearest(x, z).d < dRoad) return false;
   if (trailIdx.nearest(x, z).d < dTrail) return false;
   if (Math.hypot(x - CAMP.x, z - CAMP.z) < dCamp) return false;
@@ -673,8 +702,8 @@ for (const r of RAMPS) {
   const c2 = new T.CylinderGeometry(0, 1.8, 3.6, 7); c2.translate(0, 6.3, 0);
   const pts = [];
   let tries = 0;
-  while (pts.length < 1700 && tries++ < 20000) {
-    const x = (rand() * 2 - 1) * 480, z = (rand() * 2 - 1) * 480;
+  while (pts.length < 6500 && tries++ < 90000) {
+    const x = (rand() * 2 - 1) * (HALF - 20), z = (rand() * 2 - 1) * (HALF - 20);
     if (!placeOK(x, z, 13, 6, 27)) continue;
     const y = gridH(x, z);
     if (y > snowLine(x, z) - 4) continue;
@@ -682,17 +711,21 @@ for (const r of RAMPS) {
     if (slopeNy(x, z) < 0.62) continue;
     pts.push([x, y, z, 0.75 + rand() * 0.75]);
   }
-  const N = pts.length;
-  const trunks = new T.InstancedMesh(trunkG, M(0x5a3e2b), N);
-  const f1 = new T.InstancedMesh(c1, M(0xffffff), N), f2 = new T.InstancedMesh(c2, M(0xffffff), N);
-  pts.forEach(([x, y, z, s], i) => {
+  const trunkM = M(0x5a3e2b), leafM = M(0xffffff);
+  for (const p of pts) chunkOf(p[0], p[2]).trees.push(p);
+  for (const ch of chunks) {
+  const N = ch.trees.length; if (!N) continue;
+  const trunks = new T.InstancedMesh(trunkG, trunkM, N);
+  const f1 = new T.InstancedMesh(c1, leafM, N), f2 = new T.InstancedMesh(c2, leafM, N);
+  ch.trees.forEach(([x, y, z, s], i) => {
     dummy.position.set(x, y - 0.2, z); dummy.rotation.set(0, rand() * 6.28, 0); dummy.scale.set(s, s * (0.9 + rand() * 0.3), s); dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix); f1.setMatrixAt(i, dummy.matrix); f2.setMatrixAt(i, dummy.matrix);
     tmpCol.setHSL(0.30 + rand() * 0.06, 0.38 + rand() * 0.15, 0.22 + rand() * 0.1);
     f1.setColorAt(i, tmpCol); tmpCol.offsetHSL(0, 0, 0.04); f2.setColorAt(i, tmpCol);
     addObs(x, z, 0.45 * s);
   });
-  for (const m of [trunks, f1, f2]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
+  for (const m of [trunks, f1, f2]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; ch.grp.add(m); }
+  }
 }
 
 /* boulders (solid) and trail rocks (drive-over bumps) */
@@ -700,8 +733,8 @@ for (const r of RAMPS) {
   const g = new T.DodecahedronGeometry(1, 0);
   const pts = [];
   let tries = 0;
-  while (pts.length < 170 && tries++ < 5000) {
-    const x = (rand() * 2 - 1) * 470, z = (rand() * 2 - 1) * 470;
+  while (pts.length < 650 && tries++ < 20000) {
+    const x = (rand() * 2 - 1) * (HALF - 30), z = (rand() * 2 - 1) * (HALF - 30);
     if (!placeOK(x, z, 12, 7, 30)) continue;
     pts.push([x, z, 1.2 + rand() * 3.2]);
   }
@@ -725,7 +758,7 @@ for (const r of RAMPS) {
   // shrubs
   const sg = new T.IcosahedronGeometry(1, 0); const sp = [];
   tries = 0;
-  while (sp.length < 420 && tries++ < 6000) { const x = (rand() * 2 - 1) * 470, z = (rand() * 2 - 1) * 470; if (placeOK(x, z, 8, 4, 20) && gridH(x, z) < 80) sp.push([x, z]); }
+  while (sp.length < 1500 && tries++ < 24000) { const x = (rand() * 2 - 1) * (HALF - 30), z = (rand() * 2 - 1) * (HALF - 30); if (placeOK(x, z, 8, 4, 20) && gridH(x, z) < 110) sp.push([x, z]); }
   const sm = new T.InstancedMesh(sg, M(0xffffff), sp.length);
   sp.forEach(([x, z], i) => {
     const s = 0.5 + rand() * 0.8; dummy.position.set(x, gridH(x, z) + s * 0.3, z); dummy.rotation.set(0, rand() * 6, 0); dummy.scale.set(s * 1.3, s, s * 1.3); dummy.updateMatrix();
@@ -1175,9 +1208,9 @@ function collideVehicle(v) {
     if (friend.state !== 'ride') resolve(q.x, q.z, q.r, friend.x, friend.z, 0.45);
   }
   const r = Math.hypot(v.x, v.z);
-  if (r > 485) {
+  if (r > EDGE) {
     if (v.s.wrap) { v.x *= -0.95; v.z *= -0.95; v.air = false; v.vy = 0; poseGround(v, true); } // too fast for the map: come back in on the far side
-    else { v.x *= 485 / r; v.z *= 485 / r; v.speed *= 0.5; }
+    else { v.x *= EDGE / r; v.z *= EDGE / r; v.speed *= 0.5; }
   }
 }
 
@@ -1244,11 +1277,11 @@ function driveVehicle(v, inp, dt) {
   }
   v.accel = (v.speed - prev) / dt;
 
-  const steerT = inp.steer * 0.62 / (1 + Math.abs(v.speed) / 14);
-  v.steer += (steerT - v.steer) * Math.min(1, dt * 7);
+  const steerT = inp.steer * 0.78 / (1 + Math.abs(v.speed) / 24);
+  v.steer += (steerT - v.steer) * Math.min(1, dt * 11);
   if (!lowAir) {
     let yr = v.speed * Math.tan(v.steer) / s.wb;
-    const latMax = sg * gk * 9.8 * 1.05, lat = Math.abs(v.speed * yr);
+    const latMax = sg * gk * 9.8 * 1.3, lat = Math.abs(v.speed * yr);
     if (lat > latMax) { yr *= latMax / lat; v.slip = true; }
     if (inp.hand && Math.abs(v.speed) > 6) { yr *= 1.55; v.slip = true; }
     v.yaw += yr * dt; v.latAcc = v.speed * yr;
@@ -1515,7 +1548,7 @@ function footStep(inp, dt) {
   const push = (ox, oz, or) => { const dx = player.x - ox, dz = player.z - oz, d = Math.hypot(dx, dz), m = 0.4 + or; if (d < m && d > 1e-4) { player.x += dx / d * (m - d); player.z += dz / d * (m - d); } };
   eachObs(player.x, player.z, o => push(o.x, o.z, o.r));
   for (const u of vehicles) { if (Math.abs(u.x - player.x) > 10 || Math.abs(u.z - player.z) > 10) continue; vehicleCircles(u, circB); for (const b of circB) push(b.x, b.z, b.r); }
-  const r = Math.hypot(player.x, player.z); if (r > 485) { player.x *= 485 / r; player.z *= 485 / r; }
+  const r = Math.hypot(player.x, player.z); if (r > EDGE) { player.x *= EDGE / r; player.z *= EDGE / r; }
   const gy = groundH(player.x, player.z);
   if (player.ground) {
     if (gy < player.y - 0.5) { player.ground = false; player.vy = 0; }
@@ -1576,6 +1609,9 @@ const aiDefs = [
   { key: 'hauler', color: 0xd8dad6, s: 0.22, dir: 1, target: 15 },
   { key: 'coupe', color: 0xe9e7df, s: 0.55, dir: -1, target: 21 },
   { key: 'pickup', color: 0x7a2f2a, s: 0.8, dir: 1, target: 18 },
+  { key: 'ridgeback', color: 0x6b6f2f, s: 0.38, dir: -1, target: 17 },
+  { key: 'coupe', color: 0x23415f, s: 0.68, dir: 1, target: 20 },
+  { key: 'hauler', color: 0xc9cbc7, s: 0.94, dir: -1, target: 14 },
 ];
 for (const d of aiDefs) {
   const v = makeVehicle(d.key, d.color);
@@ -2789,7 +2825,7 @@ function drawCompass(bearing, targets) {
 }
 
 /* minimap: pre-rendered relief */
-const MAPPX = 500, mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = MAPPX;
+const MAPPX = 600, mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = MAPPX;
 {
   const m = mapCv.getContext('2d'), img = m.createImageData(MAPPX, MAPPX), k = WORLD / MAPPX;
   for (let py = 0; py < MAPPX; py++) for (let px = 0; px < MAPPX; px++) {
@@ -2806,7 +2842,7 @@ const MAPPX = 500, mapCv = document.createElement('canvas'); mapCv.width = mapCv
   const P = p => [(p.x + HALF) / k, (p.z + HALF) / k];
   m.lineJoin = 'round';
   m.beginPath(); road.forEach((p, i) => { const [x, y] = P(p); i ? m.lineTo(x, y) : m.moveTo(x, y); }); m.closePath();
-  m.strokeStyle = '#e8e2cf'; m.lineWidth = 7; m.stroke(); m.strokeStyle = '#3b3e43'; m.lineWidth = 4.5; m.stroke();
+  m.strokeStyle = '#e8e2cf'; m.lineWidth = 4.5; m.stroke(); m.strokeStyle = '#3b3e43'; m.lineWidth = 2.8; m.stroke();
   m.beginPath(); trail.forEach((p, i) => { const [x, y] = P(p); i ? m.lineTo(x, y) : m.moveTo(x, y); });
   m.setLineDash([5, 3]); m.strokeStyle = '#c08a52'; m.lineWidth = 2.5; m.stroke(); m.setLineDash([]);
   m.fillStyle = '#ff7a1a'; for (const r of RAMPS) { const [x, y] = P({ x: r.x + Math.sin(r.yaw) * r.len / 2, z: r.z + Math.cos(r.yaw) * r.len / 2 }); m.beginPath(); m.arc(x, y, 3 + r.h * 0.3, 0, 6.283); m.fill(); }
@@ -3031,6 +3067,7 @@ function frame(now) {
   }
   for (const v of vehicles) renderVehicle(v, dt);
   updateCamera(dt);
+  updateChunks(camera.position.x, camera.position.z);
   const v = player.vehicle;
   if (state === 'menu') focus.set(CAMP.x, CAMP.y, CAMP.z);
   else if (v) focus.set(v.x, v.y, v.z); else focus.set(player.x, player.y, player.z);
