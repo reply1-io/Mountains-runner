@@ -293,7 +293,7 @@ body.touch .keys{display:none}
   <div class="menu-inner">
     <p class="eyebrow">Open-world mountain driving</p>
     <h1>Mountains <span>Runner</span></h1>
-    <p class="lede">Kick up dust on the winding valley dirt road, take the paved ridge road up to Lookout Peak, and head back to your own camp. Bring a friend along for the ride, or step out and walk anywhere.</p>
+    <p class="lede">Cruise the valley highway, crawl the rocky ridge trail up to Lookout Peak, and head back to your own camp. Bring a friend along for the ride, or step out and walk anywhere.</p>
     <div class="campform">
       <div class="field"><label for="campName">Name your camp</label><input id="campName" maxlength="22" autocomplete="off" spellcheck="false" placeholder="Pine Hollow Camp"></div>
       <div class="field"><span class="lbl">E30 gearbox</span><div class="seg" id="gearSeg" role="group" aria-label="E30 gearbox"><button type="button" data-g="manual">Manual</button><button type="button" data-g="auto">Automatic</button></div></div>
@@ -520,7 +520,7 @@ function addBump(x, z, r, h) {
       const k = cx * 100003 + cz; let l = bumpGrid.get(k); if (!l) bumpGrid.set(k, l = []); l.push(b);
     }
 }
-for (let i = 22; i < trail.length - 3 && false; i += 2) { // trail is paved now: no rocks
+for (let i = 22; i < trail.length - 3; i += 2) {
   if (rand() < 0.55) {
     const a = trail[i - 1], b = trail[i + 1]; let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz); tx /= l; tz /= l;
     const off = (rand() * 2 - 1) * 2.4, p = trail[i];
@@ -538,7 +538,7 @@ const snowLine = (x, z) => 125 + fbm(x * 0.02, z * 0.02, 2) * 30;
 
 const SURF = [
   { name: 'Asphalt', grip: 1.0, roll: 0.15 },
-  { name: 'Dirt road', grip: 0.8, roll: 0.35 },
+  { name: 'Dirt trail', grip: 0.8, roll: 0.35 },
   { name: 'Grass', grip: 0.7, roll: 0.55 },
   { name: 'Rock', grip: 0.78, roll: 0.4 },
   { name: 'Snow', grip: 0.45, roll: 0.7 },
@@ -548,8 +548,8 @@ function slopeNy(x, z) {
   return 4 / Math.hypot(dx, 4, dz);
 }
 function surfaceAt(x, z) {
-  if (roadIdx.nearest(x, z).d < ROAD_HALF + 0.6) return 1;   // dirt highway
-  if (trailIdx.nearest(x, z).d < 3.4) return 0;              // paved trail
+  if (roadIdx.nearest(x, z).d < ROAD_HALF + 0.6) return 0;
+  if (trailIdx.nearest(x, z).d < 3.4) return 1;
   const y = gridH(x, z), ny = slopeNy(x, z);
   if (y > snowLine(x, z) && ny > 0.55) return 4;
   return ny < 0.74 ? 3 : 2;
@@ -597,8 +597,8 @@ const chunkOf = (x, z) => chunks[clamp(Math.floor((z + HALF) / CHUNK_M), 0, CHUN
       const x = (A[0] + B[0] + Cc[0]) / 3, y = (A[1] + B[1] + Cc[1]) / 3, z = (A[2] + B[2] + Cc[2]) / 3;
       const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], vx = Cc[0] - A[0], vy = Cc[1] - A[1], vz = Cc[2] - A[2];
       const nx = uy * vz - uz * vy, ny0 = uz * vx - ux * vz, nz = ux * vy - uy * vx, ny = Math.abs(ny0) / Math.hypot(nx, ny0, nz);
-      if (dr < 8.5) c.copy(C.dirt);
-      else if (dt < 3.8) c.copy(C.gravel);
+      if (dr < 8.5) c.copy(C.gravel);
+      else if (dt < 3.8) c.copy(C.dirt);
       else if (Math.hypot(x - CAMP.x, z - CAMP.z) < 21) c.copy(C.camp);
       else if (y > snowLine(x, z) && ny > 0.55) c.copy(C.snow);
       else if (ny < 0.74) c.copy(C.rock).lerp(tmp.copy(C.alp), clamp((ny - 0.6) * 4, 0, 1) * 0.4);
@@ -649,15 +649,11 @@ function ribbon(pts, closed, w0, w1, yFn, mat, dash) {
 }
 const offMat = (color, f) => new T.MeshLambertMaterial({ color, polygonOffset: true, polygonOffsetFactor: f, polygonOffsetUnits: f, side: T.DoubleSide });
 const roadY = (x, z, p) => p.y + 0.12;
-// the valley highway is a wide dirt road: packed brown with darker wheel ruts
-ribbon(road, true, -ROAD_HALF, ROAD_HALF, roadY, offMat(0x7a5a3c, -2));
-for (const c of [-3.4, -1.6, 1.6, 3.4]) ribbon(road, true, c - 0.35, c + 0.35, (x, z, p) => p.y + 0.14, offMat(0x5f4530, -4));
-// the ridge trail is a narrow paved road: asphalt, dashed centre line, white edges
-const trailY = (x, z) => gridH(x, z) + 0.1, trailMark = (x, z) => gridH(x, z) + 0.13;
-ribbon(trail, false, -2.6, 2.6, trailY, offMat(0x3b3e43, -3));
-ribbon(trail, false, -0.08, 0.08, trailMark, offMat(0xe8b931, -5), [3, 5]);
-ribbon(trail, false, -2.45, -2.33, trailMark, offMat(0xe6e6df, -5));
-ribbon(trail, false, 2.33, 2.45, trailMark, offMat(0xe6e6df, -5));
+ribbon(road, true, -ROAD_HALF, ROAD_HALF, roadY, offMat(0x3b3e43, -2));
+ribbon(road, true, -0.1, 0.1, (x, z, p) => p.y + 0.14, offMat(0xe8b931, -4), [3, 6]);
+ribbon(road, true, -4.65, -4.5, (x, z, p) => p.y + 0.14, offMat(0xe6e6df, -4));
+ribbon(road, true, 4.5, 4.65, (x, z, p) => p.y + 0.14, offMat(0xe6e6df, -4));
+ribbon(trail, false, -2.6, 2.6, (x, z) => gridH(x, z) + 0.1, offMat(0x6e4f35, -3));
 
 /* ------------------------------------------------------------------ obstacles */
 const obsGrid = new Map();
@@ -1455,7 +1451,7 @@ const LINES = {
   roll: () => ['We\'re leaning a lot!', 'Careful… careful…'],
   air: () => ['Wheee!', 'All four wheels off the ground!'],
   crash: () => ['Ouch! The paint!', 'Did you see that tree?'],
-  rocky: () => ['Try 4H on this dirt.', 'Four-wheel drive would help here.'],
+  rocky: () => ['Try 4L on these rocks.', 'Low range would help here.'],
   night: () => ['Look at all those stars.', 'Glad we have headlights.', 'Owls are out tonight.'],
   idle: () => ['Smell those pines.', 'Where to next?', `${names.camp} is the best camp around.`, 'Good tunes would make this perfect.'],
   home: () => [`Home sweet ${names.camp}.`, 'Back at camp. Marshmallows?'],
@@ -1521,7 +1517,7 @@ function friendChatter(dt) {
   else if (v.air && kmh > 30) line = pick(LINES.air());
   else if (Math.abs(v.roll) > 0.42 && !v.flipped) line = pick(LINES.roll());
   else if (kmh > 115) line = pick(LINES.fast());
-  else if (v.surf === 1 && v.s.awd && v.mode === '2H' && v.slip) line = pick(LINES.rocky());
+  else if (v.surf === 1 && v.s.awd && v.mode !== '4L' && v.slip) line = pick(LINES.rocky());
   else if (f.chatT <= 0) { line = pick(isNight() ? LINES.night() : LINES.idle()); f.chatT = 35 + Math.random() * 25; }
   if (line) { say(line); f.cool = 10; }
 }
@@ -2846,9 +2842,9 @@ const MAPPX = 600, mapCv = document.createElement('canvas'); mapCv.width = mapCv
   const P = p => [(p.x + HALF) / k, (p.z + HALF) / k];
   m.lineJoin = 'round';
   m.beginPath(); road.forEach((p, i) => { const [x, y] = P(p); i ? m.lineTo(x, y) : m.moveTo(x, y); }); m.closePath();
-  m.setLineDash([5, 3]); m.strokeStyle = '#c08a52'; m.lineWidth = 3; m.stroke(); m.setLineDash([]);
+  m.strokeStyle = '#e8e2cf'; m.lineWidth = 4.5; m.stroke(); m.strokeStyle = '#3b3e43'; m.lineWidth = 2.8; m.stroke();
   m.beginPath(); trail.forEach((p, i) => { const [x, y] = P(p); i ? m.lineTo(x, y) : m.moveTo(x, y); });
-  m.strokeStyle = '#e8e2cf'; m.lineWidth = 3.6; m.stroke(); m.strokeStyle = '#3b3e43'; m.lineWidth = 2.2; m.stroke();
+  m.setLineDash([5, 3]); m.strokeStyle = '#c08a52'; m.lineWidth = 2.5; m.stroke(); m.setLineDash([]);
   m.fillStyle = '#ff7a1a'; for (const r of RAMPS) { const [x, y] = P({ x: r.x + Math.sin(r.yaw) * r.len / 2, z: r.z + Math.cos(r.yaw) * r.len / 2 }); m.beginPath(); m.arc(x, y, 3 + r.h * 0.3, 0, 6.283); m.fill(); }
 }
 const mmCv = $('minimap'), mm = mmCv.getContext('2d');
