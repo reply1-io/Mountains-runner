@@ -1260,7 +1260,7 @@ function driveVehicle(v, inp, dt) {
   poseGround(v);
 
   // vertical: follow the ground, leave it over sharp crests
-  const AIR_G = 9.8 * 0.6; // floaty arcade gravity while airborne = more hang time
+  const AIR_G = 9.8; // real gravity in the air: cars settle back down quickly instead of floating
   if (v.air) {
     v.vy -= AIR_G * dt; v.y += v.vy * dt; v.airT += dt; v.airMax = Math.max(v.airMax, v.y - v.gY);
     v.pitch += (clamp(Math.atan2(v.vy, Math.abs(v.speed) + 2), -0.6, 0.6) - v.pitch) * Math.min(1, dt * 1.2); // nose follows the arc
@@ -1275,9 +1275,9 @@ function driveVehicle(v, inp, dt) {
     }
   } else {
     const nvy = clamp((v.gY - v.y) / dt, -60, 60);
-    if (v.y - v.gY > -0.01 && nvy < v.vy - AIR_G * dt * 2.5 && Math.abs(v.speed) > 7) {
+    if (v.y - v.gY > -0.01 && nvy < v.vy - AIR_G * dt * 7 && Math.abs(v.speed) > 7) { // only a sharp crest lifts the car
       v.air = true; v.airT = 0; v.airMax = 0;
-      v.vy = Math.min(v.vy * 1.3 + 1.5, s.wrap ? 24 : 45); // kick off the lip
+      v.vy = Math.min(v.vy * 0.7, s.wrap ? 24 : 45); // suspension soaks up some of the lift
       v.y += v.vy * dt;
     } else { v.vy = nvy; v.y = v.gY; }
   }
@@ -1297,7 +1297,7 @@ function driveVehicle(v, inp, dt) {
   if (v.slip && inp.gas) v.rpm = Math.min(1, v.rpm + 0.3);
   if (sp < 1.5 && inp.gas) v.rpm = Math.max(v.rpm, 0.55); // launch revs
   if (v.manual && !low) { v.gear = v.mg > 0 ? String(v.mg) : v.mg === 0 ? 'N' : 'R'; v.rpm = v.rpmM; }
-  v.rpmS += (v.rpm - v.rpmS) * Math.min(1, dt * 9);
+  v.rpmS += (v.rpm - v.rpmS) * Math.min(1, dt * 24); // revs drop quickly on an upshift
   if (v.limiter) v.rpmS = 0.97 + Math.random() * 0.05;
 }
 
@@ -2702,7 +2702,7 @@ function shift(d) {
   const g = v.mg + d; if (g > 5 || g < -1) return;
   if (g === -1 && v.speed > 1) { toast('Stop before shifting into reverse', 1200); return; }
   if (g > 0) { const maxV = v.s.max / 3.6 * (1 - v.damage / 100 * 0.45); if (v.speed / (maxV * GEARS[g - 1]) > 1.08) { toast(`Too fast for ${ORD[g]} gear`, 1000); return; } }
-  v.mg = g; v.shiftT = 0.16; sfx.shiftClick(); buzz(12);
+  v.mg = g; v.shiftT = 0.06; sfx.shiftClick(); buzz(12); // quick clutch
   if (d > 0 && v.boost > 0.45) { sfx.bov(v.boost); v.bovReady = false; }
 }
 function toggleManual() {
