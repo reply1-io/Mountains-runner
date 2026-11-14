@@ -516,7 +516,7 @@ const SHORT = {lmp2:'Oreca 07 LMP2', csl:'3.0 CSL', e30:'M3 E30', mustang:'Musta
 // wheelbase m, front weight share, CG height m, grip balance (+ = understeer at the limit), engine voice
 const CHASSIS = {
   mustang:[2.72, .53, .52, .04, {v:'v8', pops:1}], charger70:[2.97, .56, .55, .06, {v:'bigv8', pops:1}], hellcat:[2.95, .57, .53, .05, {v:'v8', sc:1, pops:1, tweak:{muffler:1100, jitter:0.08}}],
-  c8:[2.72, .40, .45, .02, {v:'v8', pops:1, tweak:{muffler:1900, pipes:[2.1, 2.25]}}], viper:[2.44, .50, .47, .03, {v:'v10', pops:1}],
+  c8:[2.72, .40, .45, .02, {v:'v8', pops:1, tweak:{muffler:1900, pipes:[2.1, 2.25], cam: 1}}], viper:[2.44, .50, .47, .03, {v:'v10', pops:1}],
   gt3:[2.46, .39, .45, .03, {v:'flat6', pops:1}], m3:[2.73, .51, .50, .03, {v:'i6', pops:1, tweak:{intake:0.3, intakeHz:1100, muffler:2300}}], lmp2:[3.005, .45, .3, .06, {v:'v8', pops:1, tweak:{muffler:3200, pipes:[1.1, 1.15], intake:0.35, intakeHz:1300, pulseDeg:80}}], csl:[2.625, .53, .5, .03, {v:'i6', pops:1, tweak:{muffler:2300, intake:0.3, intakeHz:1050}}], e30:[2.56, .52, .50, .02, {v:'i4', pops:1, tweak:{muffler:2400, pulseDeg:100, intake:0.38, intakeHz:1200}}], golf:[2.47, .62, .52, .07, {v:'i4', tweak:{muffler:1500}}],
   elise:[2.30, .39, .42, .02, {v:'i4', tweak:{muffler:2200, pipes:[1.5]}}], svj:[2.70, .43, .45, .03, {v:'v12', pops:1}],
   ae86:[2.40, .53, .50, .02, {v:'i4'}], r34:[2.665, .55, .50, .04, {v:'i6', turbo:1, bov:'pssh', pops:1, tweak:{muffler:1500}}], supra:[2.55, .53, .49, .04, {v:'i6', turbo:1, bov:'pssh', tweak:{muffler:1300, pipes:[2.8]}}],
@@ -1220,9 +1220,14 @@ class EngineGen {
     const sr = this.sr;
     this.pulses.push({bank, k: 0, dur: Math.round((0.03 + this.rnd() * 0.05) * sr), amp, pop: 1, f: 70 + this.rnd() * 70});
   }
-  fire(bank){
+  // a big-overlap camshaft: at idle and low revs some cylinders burn hard and others barely fire,
+  // so the exhaust goes "chop, chop, chop"; the effect fades out as revs and throttle rise
+  lope(){ const c = this.cfg; return c.cam ? c.cam * Math.max(0, 1 - this.rpm / 2800) * (1 - 0.75 * this.thr) : 0; }
+  fire(bank, cyl){
     const c = this.cfg, over = this.thr < 0.06 && this.rpm > c.redline * 0.42;
     let amp = (0.22 + 0.78 * this.thr) * (1 + c.jitter * (1 + 2.5 * Math.max(0, 1 - this.rpm / 2500)) * this.gauss());
+    const lp = this.lope();
+    if(lp > 0){ const CAM = [2.3, 0.22, 1.4, 0.12, 2.0, 0.3, 1.1, 0.18], beat = (this.cyc % 2) ? 1 + 0.6 * lp : 1 - 0.55 * lp; amp *= Math.max(0.03, (1 + lp * (CAM[cyl % CAM.length] - 1 + 0.3 * this.gauss())) * beat); }
     if(this.lim && (this.t % 0.07) < 0.035) amp *= 0.06;
     if(over) amp *= 0.35;
     const degPerS = this.rpm / 60 * 360;
@@ -1239,9 +1244,9 @@ class EngineGen {
   }
   sample(){
     const c = this.cfg; if(!c) return 0;
-    const sr = this.sr, step = this.rpm / 60 * 360 / sr, prev = this.theta;
-    this.theta += step; let wrapped = false; if(this.theta >= 720){ this.theta -= 720; wrapped = true; }
-    for(const f of c.fire){ const a = f[0]; if(wrapped ? (a >= prev || a < this.theta) : (a >= prev && a < this.theta)) this.fire(f[1]); }
+    const sr = this.sr, lp = this.lope(), step = this.rpm * (1 + 0.1 * lp * Math.sin(2 * Math.PI * 1.7 * this.t)) / 60 * 360 / sr, prev = this.theta;
+    this.theta += step; let wrapped = false; if(this.theta >= 720){ this.theta -= 720; wrapped = true; this.cyc = (this.cyc || 0) + 1; }
+    c.fire.forEach((f, i) => { const a = f[0]; if(wrapped ? (a >= prev || a < this.theta) : (a >= prev && a < this.theta)) this.fire(f[1], i); });
     this.t += 1 / sr;
     if(this.thr < 0.06 && this.rpm > c.redline * 0.42) this.overT += 1 / sr; else if(this.thr > 0.3) this.overT = 0;
     const x = [0, 0]; let crack = 0, intake = 0;
