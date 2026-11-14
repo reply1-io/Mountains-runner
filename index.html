@@ -402,13 +402,39 @@ class PathIndex {
 }
 
 // Valley highway: a closed loop around the central peak
-const ROAD_N = 3600, ROAD_HALF = 5;
-const roadR = t => 640 + 80 * Math.sin(3 * t) + 45 * Math.sin(8 * t + 1) + 26 * Math.sin(13 * t + 2) + 12 * Math.sin(21 * t + 0.5);
-const road = [];
-for (let i = 0; i < ROAD_N; i++) {
-  const t = i / ROAD_N * Math.PI * 2, R = roadR(t);
-  road.push({ x: Math.cos(t) * R, z: Math.sin(t) * R, y: 0 });
-}
+const ROAD_N = 4400, ROAD_HALF = 5;
+// Windy highway: a smooth base loop, woven side to side along its length (like switchbacks),
+// smoothed, then only bends tighter than 16 m radius are eased out. ~6.7 km with ~70 bends.
+const road = (() => {
+  const M = 6000, base = [];
+  for (let i = 0; i < M; i++) { const t = i / M * Math.PI * 2, R = 640 + 60 * Math.sin(3 * t) + 28 * Math.sin(7 * t + 1); base.push([Math.cos(t) * R, Math.sin(t) * R]); }
+  let BL = 0; for (let i = 0; i < M; i++) BL += Math.hypot(base[(i + 1) % M][0] - base[i][0], base[(i + 1) % M][1] - base[i][1]);
+  const waves = [[42, 150, 0], [38, 400, 1], [14, 90, 2]].map(([A, lam, ph]) => [A, BL / Math.max(1, Math.round(BL / lam)), ph]); // whole weaves: no seam
+  const out = []; let sAcc = 0;
+  for (let i = 0; i < M; i++) {
+    const a = base[(i - 1 + M) % M], b = base[(i + 1) % M], tx = b[0] - a[0], tz = b[1] - a[1], l = Math.hypot(tx, tz);
+    if (i) sAcc += Math.hypot(base[i][0] - base[i - 1][0], base[i][1] - base[i - 1][1]);
+    const off = waves.reduce((acc, [A, lam, ph]) => acc + A * Math.sin(2 * Math.PI * sAcc / lam + ph), 0);
+    out.push([base[i][0] - tz / l * off, base[i][1] + tx / l * off]);
+  }
+  for (let pass = 0; pass < 3; pass++) { const c = out.map(q => q.slice()); for (let i = 0; i < M; i++) { let x = 0, z = 0; for (let k = -6; k <= 6; k++) { const q = c[(i + k + M) % M]; x += q[0]; z += q[1]; } out[i] = [x / 13, z / 13]; } }
+  const cum = [0]; for (let i = 1; i <= M; i++) cum.push(cum[i - 1] + Math.hypot(out[i % M][0] - out[i - 1][0], out[i % M][1] - out[i - 1][1]));
+  const L = cum[M], pts = []; let j = 0;
+  for (let i = 0; i < ROAD_N; i++) { const target = i / ROAD_N * L; while (cum[j + 1] < target) j++; const u = (target - cum[j]) / (cum[j + 1] - cum[j]), A = out[j], B = out[(j + 1) % M]; pts.push({ x: A[0] + (B[0] - A[0]) * u, z: A[1] + (B[1] - A[1]) * u, y: 0 }); }
+  const st = Math.max(2, Math.round(6 / (L / ROAD_N)));
+  for (let it = 0; it < 400; it++) {   // ease out only the too-tight hairpins
+    let worst = 1e9;
+    for (let i = 0; i < ROAD_N; i++) {
+      const a = pts[(i - st + ROAD_N) % ROAD_N], b = pts[i], c = pts[(i + st) % ROAD_N];
+      const ab = Math.hypot(b.x - a.x, b.z - a.z), bc = Math.hypot(c.x - b.x, c.z - b.z), ca = Math.hypot(a.x - c.x, a.z - c.z);
+      const ar = Math.abs((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)) / 2, r = ar > 1e-9 ? ab * bc * ca / (4 * ar) : 1e9;
+      worst = Math.min(worst, r);
+      if (r < 16) { b.x += ((a.x + c.x) / 2 - b.x) * 0.5; b.z += ((a.z + c.z) / 2 - b.z) * 0.5; }
+    }
+    if (worst >= 16) break;
+  }
+  return pts;
+})();
 road.forEach(p => p.y = naturalH(p.x, p.z));
 { // smooth the road's height over about ±40 m so it climbs and dips like a real road
   let len = 0; for (let i = 0; i < ROAD_N; i++) { const a = road[i], b = road[(i + 1) % ROAD_N]; len += Math.hypot(b.x - a.x, b.z - a.z); }
@@ -421,6 +447,12 @@ road.forEach(p => p.y = naturalH(p.x, p.z));
 const roadS = [0];
 for (let i = 1; i <= ROAD_N; i++) { const a = road[i - 1], b = road[i % ROAD_N]; roadS.push(roadS[i - 1] + Math.hypot(b.x - a.x, b.z - a.z)); }
 const ROAD_LEN = roadS[ROAD_N];
+const roadRad = road.map((b, i) => {
+  const a = road[(i - 4 + ROAD_N) % ROAD_N], c = road[(i + 4) % ROAD_N];
+  const ab = Math.hypot(b.x - a.x, b.z - a.z), bc = Math.hypot(c.x - b.x, c.z - b.z), ca = Math.hypot(a.x - c.x, a.z - c.z);
+  const ar = Math.abs((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)) / 2; return ar > 1e-9 ? ab * bc * ca / (4 * ar) : 1e9;
+});
+function roadIndexAt(sDist) { sDist = ((sDist % ROAD_LEN) + ROAD_LEN) % ROAD_LEN; let lo = 0, hi = ROAD_N; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (roadS[m] <= sDist) lo = m; else hi = m; } return lo; }
 function roadAt(s) {
   s = ((s % ROAD_LEN) + ROAD_LEN) % ROAD_LEN;
   let lo = 0, hi = ROAD_N;
@@ -1341,7 +1373,9 @@ function updateAI(v, dt) {
   if (player.onFoot) check(player.x, player.z);
   if (friend.state !== 'ride') check(friend.x, friend.z);
   for (const u of vehicles) if (u !== v) check(u.x, u.z);
-  a.cur += clamp((block ? 0 : a.target) - a.cur, -9 * dt, 2.5 * dt);
+  let bendR = 1e9; for (let d = 0; d <= 40; d += 8) bendR = Math.min(bendR, roadRad[roadIndexAt(a.s + a.dir * d)]); // look ahead for hairpins
+  const want = Math.min(a.target, Math.sqrt(3.5 * bendR));
+  a.cur += clamp((block ? 0 : want) - a.cur, -9 * dt, 2.5 * dt);
   a.s += a.dir * a.cur * dt;
   const P = roadAt(a.s), hx = P.tx * a.dir, hz = P.tz * a.dir;
   v.x = P.x - hz * a.lane; v.z = P.z + hx * a.lane;
