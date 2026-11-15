@@ -1050,7 +1050,7 @@ const SPECS = {
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
-const ORDER = ['ridgeback', 'coupe', 'supra', 'p50', 'pickup', 'hauler'];
+const ORDER = ['ridgeback', 'coupe', 'supra', 'p50', 'pickup'];
 
 const BUILD = {
   ridgeback(b, s, m) {
@@ -1753,12 +1753,10 @@ const parked = {};
   });
 }
 const aiDefs = [
-  { key: 'hauler', color: 0xd8dad6, s: 0.22, dir: 1, target: 15 },
   { key: 'coupe', color: 0xe9e7df, s: 0.55, dir: -1, target: 21 },
   { key: 'pickup', color: 0x7a2f2a, s: 0.8, dir: 1, target: 18 },
   { key: 'ridgeback', color: 0x6b6f2f, s: 0.38, dir: -1, target: 17 },
   { key: 'coupe', color: 0x23415f, s: 0.68, dir: 1, target: 20 },
-  { key: 'hauler', color: 0xc9cbc7, s: 0.94, dir: -1, target: 14 },
 ];
 for (const d of aiDefs) {
   const v = makeVehicle(d.key, d.color);
