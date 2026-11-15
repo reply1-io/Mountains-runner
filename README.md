@@ -1,6 +1,6 @@
 # Mountains-runner
 
-**Mountains Runner** is a low-poly, open-world mountain driving game that runs in the browser. Open `index.html` to play. There is nothing to install.
+**Camp With a Friend** is a low-poly, open-world mountain driving game that runs in the browser. Open `index.html` to play. There is nothing to install.
 
 ## What's in it
 - **Big map**: 2.4 km across, ringed by snowy mountains. Only the ground and trees near you are drawn, so it stays smooth on phones.
@@ -37,7 +37,7 @@
 Drag to look around and scroll to zoom.
 
 ## Playing on a phone
-Mountains Runner is built for phones held sideways:
+Camp With a Friend is built for phones held sideways:
 - **Controls**: steer with the ◀ ▶ buttons (on foot they become a ◀ ▲ ▼ ▶ pad), GAS and BRAKE pedals on the right. USE gets in and out of vehicles and talks to your friend. HAND is the handbrake, and it becomes JUMP on foot. UP and DN shift gears in manual. RESET recovers a stuck car.
 - **Camera**: drag the screen to look around and pinch to zoom.
 - **Screen**: Start goes full screen and locks landscape where the phone allows it, and the screen stays awake while you play.
