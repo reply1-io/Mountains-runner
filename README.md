@@ -38,7 +38,7 @@ Drag to look around and scroll to zoom.
 
 ## Playing on a phone
 Mountains Runner is built for phones held sideways:
-- **Controls**: steer with the left stick, GAS and BRAKE pedals on the right. USE gets in and out of vehicles and talks to your friend. HAND is the handbrake, and it becomes JUMP on foot. UP and DN shift gears in manual. RESET recovers a stuck car.
+- **Controls**: steer with the ◀ ▶ buttons (on foot they become a ◀ ▲ ▼ ▶ pad), GAS and BRAKE pedals on the right. USE gets in and out of vehicles and talks to your friend. HAND is the handbrake, and it becomes JUMP on foot. UP and DN shift gears in manual. RESET recovers a stuck car.
 - **Camera**: drag the screen to look around and pinch to zoom.
 - **Screen**: Start goes full screen and locks landscape where the phone allows it, and the screen stays awake while you play.
 - **Rotate prompt**: if you hold the phone upright, a prompt asks you to turn it sideways. You can still choose to play upright.
