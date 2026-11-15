@@ -99,6 +99,10 @@ body.touch.manual .shiftbtn{display:block}
 .meters b{font-family:var(--display);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;min-width:4ch}
 #footinfo{font-size:13px;color:var(--muted);line-height:1.4}
 
+#tentMenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:auto;display:flex;flex-direction:column;gap:8px;padding:16px;min-width:220px;text-align:center}
+#tentMenu b{font-family:var(--display);font-size:18px}
+#tentMenu .tbtn{height:46px;font-size:14px;width:100%}
+#fade{position:fixed;inset:0;background:#000;opacity:0;transition:opacity .6s;z-index:40;pointer-events:none}
 #prompt{position:absolute;left:50%;bottom:calc(var(--gb) + 120px);transform:translateX(-50%);padding:8px 16px;font-size:15px;border-radius:999px;background:var(--panel-hi);border:1px solid var(--line);white-space:nowrap}
 #prompt kbd{font-family:var(--display);font-weight:800;color:#10201a;background:var(--accent);border-radius:6px;padding:1px 7px;margin-right:6px}
 #toast{position:absolute;left:50%;top:calc(var(--gt) + 118px);transform:translateX(-50%);padding:10px 18px;border-radius:12px;background:var(--panel-hi);border:1px solid var(--line);font-size:15px;text-align:center;max-width:calc(100vw - 40px);transition:opacity .3s}
@@ -275,10 +279,17 @@ body.touch .keys{display:none}
   </div>
 
   <div id="prompt" hidden></div>
+  <div id="tentMenu" class="panel" hidden>
+    <b>Your tent</b>
+    <button class="tbtn" id="tmSleep" type="button">Sleep until morning</button>
+    <button class="tbtn" id="tmPack" type="button">Pack up tent</button>
+    <button class="tbtn" id="tmClose" type="button">Close</button>
+  </div>
   <div id="toast" style="opacity:0"></div>
 </div>
 
 <div id="rotate" hidden><div><i></i><b>Turn your phone sideways</b><p>Mountains Runner plays best in landscape: steering on the left, pedals on the right.</p><button class="ghost" id="rotateOk" type="button">Play upright anyway</button></div></div>
+<div id="fade" hidden></div>
 <div id="touch" style="visibility:hidden">
   <div id="stick"><div id="knob"></div></div>
   <button class="rbtn" id="bDoor">USE</button>
@@ -495,6 +506,19 @@ const roadIdx = new PathIndex(road, true, 20, 28);
 const trailIdx = new PathIndex(trail, false, 20, 16);
 const SUMMIT = trail[trail.length - 1];
 
+const HOME = (() => {
+  for (let f = 0.5; f < 0.9; f += 0.005) {
+    const i = Math.round(ROAD_N * f), a = road[i], b = road[i + 1];
+    const tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz);
+    let nx = -tz / l, nz = tx / l;
+    if (Math.hypot(a.x + nx, a.z + nz) > Math.hypot(a.x, a.z)) { nx = -nx; nz = -nz; }           // inside the loop
+    const x = a.x + nx * 52, z = a.z + nz * 52;
+    if (roadIdx.nearest(x, z).d < 48 || trailIdx.nearest(x, z).d < 90) continue;               // no other road or trail nearby
+    return { x, z, y: naturalH(x, z), rx: a.x, rz: a.z, ux: -nx, uz: -nz };                    // u = towards the road
+  }
+  return { x: 0, z: 500, y: naturalH(0, 500), rx: 0, rz: 560, ux: 0, uz: 1 };
+})();
+const homePt = (u, w) => ({ x: HOME.x + HOME.ux * u - HOME.uz * w, z: HOME.z + HOME.uz * u + HOME.ux * w });
 const CAMP = (() => {
   const i = Math.round(ROAD_N * 0.03), a = road[i], b = road[i + 1];
   let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz); let nx = -tz / l, nz = tx / l;
@@ -530,6 +554,8 @@ for (let j = 0; j < NV; j++) for (let i = 0; i < NV; i++) {
   if (t.d < 16) h = lerp(h, t.y, 1 - smooth(3.2, 13, t.d));
   const dc = Math.hypot(x - CAMP.x, z - CAMP.z);
   if (dc < 42) h = lerp(h, CAMP.y, 1 - smooth(22, 40, dc));
+  const dh = Math.hypot(x - HOME.x, z - HOME.z);
+  if (dh < 48) h = lerp(h, HOME.y, 1 - smooth(26, 46, dh));   // your yard is flat
   const r = roadIdx.nearest(x, z); DR[j * NV + i] = r.d;
   if (r.d < 28) h = lerp(h, r.y, 1 - smooth(8.5, 26, r.d));
   H[j * NV + i] = h;
@@ -632,6 +658,7 @@ const chunkOf = (x, z) => chunks[clamp(Math.floor((z + HALF) / CHUNK_M), 0, CHUN
       if (dr < 8.5) c.copy(C.gravel);
       else if (dt < 3.8) c.copy(C.dirt);
       else if (Math.hypot(x - CAMP.x, z - CAMP.z) < 21) c.copy(C.camp);
+      else if (Math.hypot(x - HOME.x, z - HOME.z) < 24) c.copy(C.grassB).multiplyScalar(1.05);   // lawn
       else if (y > snowLine(x, z) && ny > 0.55) c.copy(C.snow);
       else if (ny < 0.74) c.copy(C.rock).lerp(tmp.copy(C.alp), clamp((ny - 0.6) * 4, 0, 1) * 0.4);
       else {
@@ -700,6 +727,7 @@ function eachObs(x, z, fn) { const l = obsGrid.get(Math.floor(x / 10) * 100003 +
 
 const dummy = new T.Object3D(), tmpCol = new T.Color();
 function placeOK(x, z, dRoad, dTrail, dCamp) {
+  if (Math.hypot(x - HOME.x, z - HOME.z) < 32) return false;
   for (const r of RAMPS) if (Math.hypot(x - (r.x + Math.sin(r.yaw) * r.len / 2), z - (r.z + Math.cos(r.yaw) * r.len / 2)) < r.len * 0.75 + 18) return false; // keep run-ups and landings clear
   if (Math.hypot(x, z) > HALF - 20) return false;
   if (roadIdx.nearest(x, z).d < dRoad) return false;
@@ -901,6 +929,79 @@ function prismGeo(w, h, l) {
   box(0.06, 4.2, 0.06, M(0xdddddd), 0, 2.1, 0, sm);
   box(1.1, 0.7, 0.03, M(0xd9452b), 0.56, 3.8, 0, sm);
   sm.position.set(SUMMIT.x + 4, sy, SUMMIT.z + 3); scene.add(sm); addObs(SUMMIT.x + 4, SUMMIT.z + 3, 0.8);
+}
+
+/* your house */
+const homeWin = new T.MeshLambertMaterial({ color: 0x8fb3c9, emissive: 0x000000 });
+{
+  const yaw = Math.atan2(HOME.ux, HOME.uz), c0 = homePt(-6, 0), g = new T.Group(), y0 = gridH(c0.x, c0.z);
+  const wall = M(0xe6dcc8), trim = M(0xf4f1ea), roofM = M(0x7a2f26, { side: T.DoubleSide }), wood = M(0x6b4a30), stone = M(0x8a8580);
+  box(10.4, 0.5, 8.4, stone, 0, 0.25, 0, g);                        // foundation
+  box(10, 3, 8, wall, 0, 2.0, 0, g);                                // walls
+  const roof = mesh(prismGeo(9.2, 2.6, 11), roofM, 0, 3.5, 0, g); roof.rotation.y = Math.PI / 2;
+  box(0.9, 2.2, 0.9, stone, 3, 5.0, -1.2, g);                       // chimney
+  box(1.1, 2.1, 0.08, wood, 0, 1.55, 4.04, g);                      // front door
+  for (const x of [-3, 3]) { box(1.5, 1.1, 0.08, homeWin, x, 2.2, 4.04, g); box(1.7, 0.1, 0.12, trim, x, 1.6, 4.06, g); }
+  for (const z of [-2, 2]) for (const sx of [-1, 1]) box(0.08, 1.1, 1.4, homeWin, sx * 5.04, 2.2, z, g);
+  box(4, 0.25, 2, wood, 0, 0.55, 5.0, g);                           // porch
+  for (const x of [-1.8, 1.8]) box(0.15, 2.4, 0.15, wood, x, 1.8, 5.9, g);
+  box(4.2, 0.15, 2.3, roofM, 0, 3.05, 5.0, g);                      // porch roof
+  const lamp = new T.PointLight(0xffd28a, 0, 14, 1.8); lamp.position.set(0, 2.7, 5.3); g.add(lamp); homeWin.userData.lamp = lamp;
+  g.position.set(c0.x, y0, c0.z); g.rotation.y = yaw; scene.add(g);
+  for (let u = -3.2; u <= 3.2; u += 3.2) for (let w = -4; w <= 4; w += 2.7) { const q = homePt(-6 + u, w); addObs(q.x, q.z, 1.9); }
+  // gravel driveway from the porch to the highway
+  const dw = []; const d0 = homePt(-0.5, 1.5);
+  for (let k = 0; k <= 24; k++) { const f = k / 24; dw.push({ x: lerp(d0.x, HOME.rx, f), z: lerp(d0.z, HOME.rz, f), y: 0 }); }
+  ribbon(dw, false, -1.7, 1.7, (x, z) => gridH(x, z) + 0.09, offMat(0x9a9180, -3));
+  // mailbox at the end of the drive
+  const mb = homePt(44, 3.2), mg = new T.Group();
+  box(0.12, 1.1, 0.12, wood, 0, 0.55, 0, mg); box(0.35, 0.3, 0.55, M(0x2f4a6b), 0, 1.2, 0, mg); box(0.04, 0.2, 0.12, M(0xd9452b), 0.2, 1.35, 0.1, mg);
+  mg.position.set(mb.x, gridH(mb.x, mb.z), mb.z); mg.rotation.y = yaw; scene.add(mg);
+}
+
+/* the tent you carry: packed in the back of your car, pitch it anywhere */
+const TENT_BAG = { ridgeback: [0, 2.42, -1.2], coupe: [0, 1.55, -0.35], supra: [0, 1.3, -0.6], p50: [0, 1.33, 0.2], pickup: [-0.35, 1.15, -1.9], hauler: [0, 3.95, -2] };
+const tent = { car: null, bag: null, pitched: null };
+function packTentInto(v) {
+  if (tent.bag) tent.bag.parent.remove(tent.bag);
+  const bag = new T.Group(), pos = TENT_BAG[v.key] || [0, 1.4, -0.5];
+  const roll = mesh(new T.CylinderGeometry(0.22, 0.22, 1.15, 12), M(0xd9662b), 0, 0, 0, bag); roll.rotation.z = Math.PI / 2;
+  for (const x of [-0.35, 0.35]) { const st = mesh(new T.CylinderGeometry(0.235, 0.235, 0.06, 12), M(0x1c1e20), x, 0, 0, bag, false); st.rotation.z = Math.PI / 2; }
+  bag.position.set(pos[0], pos[1], pos[2]); v.body.add(bag);
+  tent.car = v; tent.bag = bag; bag.visible = !tent.pitched;
+}
+function carRear(v) { return { x: v.x - Math.sin(v.yaw) * (v.s.len / 2 + 0.7), z: v.z - Math.cos(v.yaw) * (v.s.len / 2 + 0.7) }; }
+function nearCarRear() {
+  const v = tent.car; if (!v || tent.pitched || !player.onFoot) return false;
+  const r = carRear(v); return Math.hypot(r.x - player.x, r.z - player.z) < 2.2;
+}
+function nearPitchedTent() { return player.onFoot && tent.pitched && Math.hypot(tent.pitched.x - player.x, tent.pitched.z - player.z) < 3.4; }
+function pitchTent() {
+  const v = tent.car, yaw = v.yaw, x = v.x - Math.sin(yaw) * (v.s.len / 2 + 3.6), z = v.z - Math.cos(yaw) * (v.s.len / 2 + 3.6);
+  const g = new T.Group();
+  mesh(prismGeo(2.6, 1.7, 3.2), M(0xd9662b, { side: T.DoubleSide }), 0, 0, 0, g);
+  mesh(prismGeo(1.0, 1.1, 0.02), M(0x1c2226, { side: T.DoubleSide }), 0, 0.02, 1.61, g, false);
+  box(0.06, 1.9, 0.06, M(0x444444), 0, 0.95, 1.65, g);
+  g.position.set(x, groundH(x, z), z); g.rotation.y = yaw + Math.PI; scene.add(g);   // door faces the car
+  tent.pitched = { g, x, z }; tent.bag.visible = false; sfx.door(); buzz(20);
+  toast('Tent pitched. Walk up to it and press <b>' + (isTouch ? 'USE' : 'E') + '</b> to sleep or pack it up.', 3200);
+}
+function packTent() {
+  if (!tent.pitched) return; scene.remove(tent.pitched.g); tent.pitched = null; if (tent.bag) tent.bag.visible = true;
+  closeTentMenu(); sfx.door(); toast('Tent packed into your ' + tent.car.s.name + '.', 2200);
+}
+function openTentMenu() { $('tentMenu').hidden = false; }
+function closeTentMenu() { $('tentMenu').hidden = true; }
+function sleepInTent() {
+  closeTentMenu();
+  const f = $('fade'); f.hidden = false; requestAnimationFrame(() => { f.style.opacity = 1; });
+  setTimeout(() => {
+    timeH = 7.0;
+    for (const v of vehicles) if (!v.ai) v.damage = Math.max(0, v.damage - 30);
+    f.style.opacity = 0; setTimeout(() => { f.hidden = true; }, 700);
+    toast('Good morning! You slept in your tent until <b>7:00</b>.', 3200);
+    if (friend.state === 'follow') setTimeout(() => say("Best night's sleep I've had in ages."), 3300);
+  }, 1300);
 }
 
 /* stars */
@@ -1663,8 +1764,9 @@ function updateCamera(dt) {
   if (state === 'menu') {
     cam.menuT += dt * 0.05;
     const a = cam.menuT + 2.2;
-    camera.position.set(CAMP.x + Math.cos(a) * 30, CAMP.y + 9, CAMP.z + Math.sin(a) * 30);
-    camera.lookAt(CAMP.x + campDir.ux * 6, CAMP.y + 1.5, CAMP.z + campDir.uz * 6);
+    const hc = homePt(-2, 0);
+    camera.position.set(hc.x + Math.cos(a) * 26, HOME.y + 8, hc.z + Math.sin(a) * 26);
+    camera.lookAt(hc.x, HOME.y + 2.5, hc.z);
     return;
   }
   const v = player.vehicle;
@@ -1724,6 +1826,7 @@ function updateSky(dt, focus) {
   stars.position.copy(camera.position);
   const night = 1 - dayF;
   for (const v of vehicles) if (v.ai) v.lights = night > 0.4;
+  homeWin.emissive.setHex(night > 0.45 ? 0xffc870 : 0x000000); if (homeWin.userData.lamp) homeWin.userData.lamp.intensity = night > 0.45 ? 1.2 : 0;
   if (fireLight) { const f = 0.85 + Math.sin(performance.now() * 0.013) * 0.08 + Math.random() * 0.1; fireLight.intensity = (0.5 + night * 1.6) * f; flame.scale.set(1, f, 1); }
   const lit = player.vehicle || vehicles.find(v => v.lastDriven);
   beams.forEach(b => b.l.intensity = lit && lit.lights ? 2.4 : 0);
@@ -2749,7 +2852,13 @@ function gatherInput() {
 }
 
 function doorAction() {
-  if (player.onFoot) { if (nearFriend()) { talkToFriend(); return; } const v = nearestEnterable(); if (v) enterVehicle(v); }
+  if (player.onFoot) {
+    if (!$('tentMenu').hidden) { closeTentMenu(); return; }
+    if (nearFriend()) { talkToFriend(); return; }
+    if (nearPitchedTent()) { openTentMenu(); return; }
+    if (nearCarRear()) { pitchTent(); return; }
+    const v = nearestEnterable(); if (v) enterVehicle(v);
+  }
   else exitVehicle();
 }
 function toggleLights() {
@@ -2799,6 +2908,9 @@ document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () =
   const v = player.vehicle; if (!v || b.disabled) return; v.mode = b.dataset.mode; updateModesUI();
 }));
 $('tCam').addEventListener('click', cycleCam);
+$('tmSleep').addEventListener('click', sleepInTent);
+$('tmPack').addEventListener('click', packTent);
+$('tmClose').addEventListener('click', closeTentMenu);
 $('gear').addEventListener('click', () => state === 'play' && toggleManual());
 $('gbx').addEventListener('click', () => state === 'play' && toggleManual());
 function showGearPref() { document.querySelectorAll('#gearSeg button').forEach(b => { const on = b.dataset.g === gearPref; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); }
@@ -2890,8 +3002,11 @@ function drawMinimap(px, pz, bearing) {
   const sx = (px - view + HALF) / k, sy = (pz - view + HALF) / k, sw = view * 2 / k;
   mm.drawImage(mapCv, sx, sy, sw, sw, 0, 0, W, W);
   const toM = (x, z) => [R + (x - px) * scale, R + (z - pz) * scale];
-  // camp + summit markers
-  let [x, y] = toM(CAMP.x, CAMP.z);
+  // home, camp + summit markers
+  let [x, y] = toM(HOME.x, HOME.z);
+  mm.fillStyle = '#eef2ea'; mm.fillRect(x - 6, y - 2, 12, 9); mm.beginPath(); mm.moveTo(x - 8, y - 1); mm.lineTo(x, y - 9); mm.lineTo(x + 8, y - 1); mm.fill();
+  if (tent.pitched) { [x, y] = toM(tent.pitched.x, tent.pitched.z); mm.fillStyle = '#d9662b'; mm.beginPath(); mm.moveTo(x, y - 7); mm.lineTo(x - 7, y + 5); mm.lineTo(x + 7, y + 5); mm.fill(); }
+  [x, y] = toM(CAMP.x, CAMP.z);
   mm.fillStyle = '#ffb54d'; mm.beginPath(); mm.moveTo(x, y - 9); mm.lineTo(x - 9, y + 7); mm.lineTo(x + 9, y + 7); mm.fill();
   [x, y] = toM(SUMMIT.x, SUMMIT.z);
   mm.fillStyle = '#ff5f4a'; mm.fillRect(x - 1.5, y - 14, 3, 16); mm.fillRect(x + 1.5, y - 14, 10, 7);
@@ -2960,7 +3075,10 @@ function updateHUD(dt) {
   let pr = '';
   const key = isTouch ? 'USE' : 'E';
   if (player.onFoot) {
-    if (nearFriend()) pr = friend.state === 'follow' ? `<kbd>${key}</kbd>Ask ${esc(names.friend)} to wait at camp` : `<kbd>${key}</kbd>Invite ${esc(names.friend)} along`;
+    if (!$('tentMenu').hidden) pr = '';
+    else if (nearPitchedTent()) pr = `<kbd>${key}</kbd>Use your tent`;
+    else if (nearCarRear()) pr = `<kbd>${key}</kbd>Set up your tent`;
+    else if (nearFriend()) pr = friend.state === 'follow' ? `<kbd>${key}</kbd>Ask ${esc(names.friend)} to wait at camp` : `<kbd>${key}</kbd>Invite ${esc(names.friend)} along`;
     else { const n = nearestEnterable(); if (n) pr = `<kbd>${key}</kbd>Drive the ${n.s.name}` + (friend.state === 'follow' ? ` with ${esc(names.friend)}` : ''); }
   }
   else if (v && v.flipped) pr = `<kbd>R</kbd>Recover vehicle`;
@@ -2978,8 +3096,9 @@ function updateHUD(dt) {
   }
   if (player.summit && Math.hypot(CAMP.x - px, CAMP.z - pz) < 22 && !player.campDone) { player.campDone = true; friend.state === 'ride' ? say(pick(LINES.home())) : toast(`Back at <b>${esc(names.camp)}</b>. Try the trail in another vehicle.`, 4500); }
   // repair at camp
-  if (v && v.damage > 0 && Math.abs(v.speed) < 0.5 && Math.hypot(CAMP.x - px, CAMP.z - pz) < 25) {
-    v.damage = Math.max(0, v.damage - 6); if (!toastT || toastT <= 0) toast('Repairing at camp…', 800);
+  const atHome = Math.hypot(HOME.x - px, HOME.z - pz) < 30;
+  if (v && v.damage > 0 && Math.abs(v.speed) < 0.5 && (atHome || Math.hypot(CAMP.x - px, CAMP.z - pz) < 25)) {
+    v.damage = Math.max(0, v.damage - 6); if (!toastT || toastT <= 0) toast(atHome ? 'Repairing at home…' : 'Repairing at camp…', 800);
   }
 }
 
@@ -3051,12 +3170,12 @@ $('play').addEventListener('click', () => {
   applyNames(); sfx.init(); $('tSound').classList.toggle('on', sfx.on);
   if (!started) {
     started = true;
-    enterVehicle(parked[selected]);
-    camPos.set(player.vehicle.x - 10, player.vehicle.y + 5, player.vehicle.z - 10);
-    friend.near = true;
-    toast(isTouch
-      ? `Welcome to <b>${esc(names.camp)}</b>. Steer with the left stick, <b>GAS</b> and <b>BRAKE</b> on the right, <b>USE</b> to get out or talk to ${esc(names.friend)}. Drag the screen to look, pinch to zoom.`
-      : `Welcome to <b>${esc(names.camp)}</b>. ${esc(names.friend)} is by the fire: get out and press <b>E</b> to invite them along.`, 7000);
+    const car = parked[selected], sp = homePt(9, -3.2);              // your car, in your driveway, facing the road
+    car.x = sp.x; car.z = sp.z; car.yaw = Math.atan2(HOME.ux, HOME.uz); poseGround(car, true);
+    packTentInto(car);
+    enterVehicle(car);
+    camPos.set(car.x - Math.sin(car.yaw) * 10, car.y + 5, car.z - Math.cos(car.yaw) * 10); cam.yaw = car.yaw;
+    toast(`Welcome home. Your tent is packed in the back of your ${car.s.name}: get out, walk to the back and press <b>${isTouch ? 'USE' : 'E'}</b> to set it up anywhere. ${esc(names.friend)} is waiting at ${esc(names.camp)}.`, 7500);
   }
   resume();
 });
@@ -3103,14 +3222,14 @@ function frame(now) {
   updateCamera(dt);
   updateChunks(camera.position.x, camera.position.z);
   const v = player.vehicle;
-  if (state === 'menu') focus.set(CAMP.x, CAMP.y, CAMP.z);
+  if (state === 'menu') focus.set(HOME.x, HOME.y, HOME.z);
   else if (v) focus.set(v.x, v.y, v.z); else focus.set(player.x, player.y, player.z);
   updateSky(state === 'pause' ? 0 : dt, focus);
   if (state === 'play') updateHUD(dt);
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
