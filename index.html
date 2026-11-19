@@ -265,6 +265,8 @@ body.touch.manual #shifter{display:flex}
 #shifter button:active{background:rgba(255,138,31,.3)}
 #shifter b{font-family:var(--display);font-size:24px;text-align:center;line-height:1.2;border-block:1px solid rgba(255,138,31,.4)}
 body.touch #bUp,body.touch #bDn{position:static;width:auto;height:auto;border-radius:0}
+body.pad #touch{display:none!important}
+body.pad.touch #tachWrap{bottom:var(--gb)}
 </style>
 </head>
 <body>
@@ -379,6 +381,7 @@ body.touch #bUp,body.touch #bDn{position:static;width:auto;height:auto;border-ra
       <div><kbd>R</kbd> Recover · <kbd>T</kbd> +1 hour</div>
       <div><kbd>Drag</kbd> Look around · scroll to zoom</div>
       <div><kbd>Esc</kbd> Pause</div>
+      <div style="grid-column:1/-1"><kbd>Pad</kbd> Controller: left stick steer · RT gas · LT brake · A use · B handbrake/jump · X clutch · Y camera · RB/LB shift · Start pause</div>
     </div>
   </div>
 </div>
@@ -402,7 +405,14 @@ const store = {
 };
 let gearPref = store.get('mr.gear', 'manual'); // E30 gearbox: 'manual' or 'auto'
 const names = { camp: store.get('mr.camp', 'Pine Hollow Camp'), friend: store.get('mr.friend', 'Sam') };
-const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no haptics */ } };
+const buzz = ms => {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no haptics */ }
+  try {
+    for (const gp of (navigator.getGamepads ? navigator.getGamepads() : [])) {
+      if (gp && gp.vibrationActuator) gp.vibrationActuator.playEffect('dual-rumble', { duration: ms * 2, strongMagnitude: Math.min(1, ms / 60), weakMagnitude: 0.5 }).catch(() => {});
+    }
+  } catch (e) { /* no rumble */ }
+};
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 if (isTouch) document.body.classList.add('touch');
 
@@ -2841,16 +2851,60 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
+/* game controller (standard layout: Xbox, PlayStation, Switch Pro, ...)
+   left stick steer / walk · right stick look · RT gas · LT brake · A use (get in/out, talk, tent)
+   B handbrake / jump · X clutch · Y camera · RB / LB shift up / down · d-pad: up 4x4, down recover,
+   left manual/auto, right lights · Start pause · on the start screen: d-pad picks a car, A starts */
+const pad = { on: false, steer: 0, fwd: 0, side: 0, gas: 0, brake: 0, hand: false, clutch: false, run: false, lx: 0, ly: 0, prev: [] };
+const dz = (v, d = 0.15) => Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d);
+addEventListener('gamepadconnected', e => { toast(`Controller connected: <b>${esc((e.gamepad.id || 'gamepad').split('(')[0].trim().slice(0, 40))}</b>`, 2600); });
+addEventListener('gamepaddisconnected', () => { pad.on = false; document.body.classList.remove('pad'); toast('Controller disconnected', 1800); });
+function pollPad(dt) {
+  const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null; for (const g of gps) if (g && g.connected) { gp = g; break; }
+  if (!gp) { pad.gas = pad.brake = pad.steer = pad.fwd = pad.side = 0; pad.hand = pad.clutch = pad.run = false; return; }
+  const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), bv = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
+  const ax = i => dz(gp.axes[i] || 0);
+  const edge = i => { const now = b(i), was = !!pad.prev[i]; pad.prev[i] = now; return now && !was; };
+  pad.steer = -ax(0); pad.side = ax(0); pad.fwd = -ax(1);
+  pad.gas = bv(7); pad.brake = bv(6); pad.hand = b(1); pad.clutch = b(2);
+  pad.run = Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) > 0.9 || b(10);
+  const used = Math.abs(pad.steer) + Math.abs(pad.fwd) + pad.gas + pad.brake > 0.2 || gp.buttons.some(x => x && x.pressed);
+  if (used && !pad.on) { pad.on = true; document.body.classList.add('pad'); }
+  // look around with the right stick
+  const rx = ax(2), ry = ax(3);
+  if (rx || ry) { cam.yaw -= rx * dt * 2.6; cam.pitch = clamp(cam.pitch + ry * dt * 1.4, -0.05, 1.2); cam.free = 2.2; }
+  // one-press buttons
+  const pressed = []; for (let i = 0; i < 17; i++) pressed[i] = edge(i);
+  if (pressed[9]) { if (state === 'play') pause(); else $('play').click(); return; }
+  if (state !== 'play') {   // start screen: d-pad picks a car, A starts
+    if (pressed[14] || pressed[15]) {
+      const i = ORDER.indexOf(selected), n = ORDER[(i + (pressed[15] ? 1 : -1) + ORDER.length) % ORDER.length];
+      const card = document.querySelector(`.card[data-key="${n}"]`); if (card) { card.click(); card.scrollIntoView({ block: 'nearest' }); }
+    }
+    if (pressed[0]) $('play').click();
+    return;
+  }
+  if (!$('tentMenu').hidden) { if (pressed[0]) sleepInTent(); if (pressed[3]) packTent(); if (pressed[1]) closeTentMenu(); return; }
+  if (pressed[0]) doorAction();
+  if (pressed[3]) cycleCam();
+  if (pressed[5]) shift(1);
+  if (pressed[4]) shift(-1);
+  if (pressed[12]) cycleMode();
+  if (pressed[13]) recover();
+  if (pressed[14]) toggleManual();
+  if (pressed[15]) toggleLights();
+}
 function gatherInput() {
   touch.jx = (touch.right ? 1 : 0) - (touch.left ? 1 : 0); touch.jy = (touch.back ? 1 : 0) - (touch.fwd ? 1 : 0);
   const k = keys;
   const up = k.KeyW || k.ArrowUp, dn = k.KeyS || k.ArrowDown, lf = k.KeyA || k.ArrowLeft, rt = k.KeyD || k.ArrowRight;
   return {
-    gas: !!(up || touch.gas), brake: !!(dn || touch.brake), hand: !!(k.Space || touch.hand),
-    steer: clamp((lf ? 1 : 0) - (rt ? 1 : 0) - touch.jx, -1, 1),
-    fwd: clamp((up ? 1 : 0) - (dn ? 1 : 0) - touch.jy, -1, 1), side: clamp((rt ? 1 : 0) - (lf ? 1 : 0) + touch.jx, -1, 1),
-    clutch: !!(k.KeyQ || touch.clutch),
-    run: !!(k.ShiftLeft || k.ShiftRight || Math.hypot(touch.jx, touch.jy) > 0.92), jump: !!(k.Space || touch.hand),
+    gas: !!(up || touch.gas || pad.gas > 0.2), brake: !!(dn || touch.brake || pad.brake > 0.2), hand: !!(k.Space || touch.hand || pad.hand),
+    steer: clamp((lf ? 1 : 0) - (rt ? 1 : 0) - touch.jx + pad.steer, -1, 1),
+    fwd: clamp((up ? 1 : 0) - (dn ? 1 : 0) - touch.jy + pad.fwd, -1, 1), side: clamp((rt ? 1 : 0) - (lf ? 1 : 0) + touch.jx + pad.side, -1, 1),
+    clutch: !!(k.KeyQ || touch.clutch || pad.clutch),
+    run: !!(k.ShiftLeft || k.ShiftRight || Math.hypot(touch.jx, touch.jy) > 0.92 || pad.run), jump: !!(k.Space || touch.hand || pad.hand),
   };
 }
 
@@ -3237,7 +3291,7 @@ async function goFullscreen() {
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { wakeLock = null; } }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && state === 'play') { keepAwake(); sfx.resume(); } });
-addEventListener('pointerdown', () => sfx.resume(), { passive: true });
+addEventListener('pointerdown', e => { sfx.resume(); if (e.pointerType === 'touch' && pad.on) { pad.on = false; document.body.classList.remove('pad'); } }, { passive: true });
 $('fsBtn').addEventListener('click', goFullscreen);
 let rotateOk = false;
 function checkOrientation() { $('rotate').hidden = !(isTouch && innerHeight > innerWidth * 1.1 && !rotateOk); }
@@ -3280,6 +3334,7 @@ function lowerQuality() {
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  pollPad(dt);
   if (state === 'play' && !perf.done) { perf.frames++; perf.time += raw; if (perf.time > 5) { perf.done = true; if (perf.frames / perf.time < 38) lowerQuality(); } }
   if (state === 'play') {
     const pv = player.vehicle, inp = gatherInput(), steps = clamp(Math.ceil((pv ? Math.abs(pv.speed) : 0) * dt / 0.8), 2, 64), h = dt / steps;
@@ -3308,7 +3363,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { pad, pollPad, drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>

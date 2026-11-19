@@ -36,6 +36,24 @@
 
 Drag to look around and scroll to zoom.
 
+## Playing with a controller
+Any standard game controller works (Xbox, PlayStation, Switch Pro and others, over Bluetooth or USB). Press a button and the on-screen touch controls step aside.
+
+| Control | Action |
+| --- | --- |
+| Left stick | Steer · walk |
+| Right stick | Look around |
+| RT / LT | Gas / brake |
+| A | Get in or out · talk to your friend · set up or use your tent |
+| B | Handbrake · jump on foot |
+| X | Clutch (hold) |
+| Y | Camera |
+| RB / LB | Shift up / down |
+| D-pad | Up 4x4 mode · Down recover · Left manual/auto · Right lights |
+| Start | Pause / resume |
+
+On the start screen, the d-pad picks a car and A starts. In the tent menu, A sleeps, Y packs up, B closes. Crashes and hard landings rumble the controller.
+
 ## Playing on a phone
 Camp With a Friend is built for phones held sideways:
 - **Controls**: steer with the ◀ ▶ buttons (on foot they become a ◀ ▲ ▼ ▶ pad), GAS and BRAKE pedals on the right. USE gets in and out of vehicles and talks to your friend. HAND is the handbrake, and it becomes JUMP on foot. UP and DN shift gears in manual. RESET recovers a stuck car.
