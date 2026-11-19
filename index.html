@@ -234,26 +234,40 @@ body.touch .keys{display:none}
   #sndStatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
 }
 /* phone controls, styled like The Art of Touge: glowing orange outlines */
-:root { --neon: #ff8a1f; --neon-ink: #ffb066; --neon-bg: rgba(24, 12, 2, .38); }
+:root { --neon: rgba(238, 241, 243, .38); --neon-ink: #eef1f3; --neon-bg: rgba(22, 24, 27, .34); }
 #timer{position:absolute;right:var(--gr);top:calc(var(--gt) + 52px);display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
 #timer b{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 1px 6px rgba(0,0,0,.5)}
 #tachWrap,#topLeft,#bClutch{display:none}
 body.touch #tachWrap{display:flex;flex-direction:column;align-items:center;gap:4px;position:absolute;left:50%;transform:translateX(-50%);bottom:var(--gb);pointer-events:none}
 body.touch.onfoot #tachWrap{display:none}
-#tachDial{width:240px;height:132px}
+.spd{display:flex;align-items:center;gap:10px;padding:6px 14px 6px 10px;border-radius:16px;background:rgba(18,20,23,.72);border:1px solid rgba(238,241,243,.16);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.spd .ind{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1px solid rgba(238,241,243,.25);font:700 9px var(--display);letter-spacing:.04em;color:rgba(238,241,243,.45)}
+.spd .ind.on{background:#ffb54d;color:#1b1206;border-color:transparent}
+.spd-main{display:flex;flex-direction:column;align-items:center;min-width:96px}
+.spd-main .rpm{width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;margin-bottom:2px}
+.spd-main .rpm i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4aa3ff 0%,#4aa3ff 70%,#ff5f4a 100%)}
+.spd-main b{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums;color:#fff}
+.spd-main span{font:600 10px var(--display);letter-spacing:.14em;text-transform:uppercase;color:rgba(238,241,243,.6)}
+.spd-gear{display:flex;flex-direction:column;align-items:center;min-width:34px}
+.spd-gear b{font:800 24px/1 var(--display);color:#fff}
+.spd-gear span{font:700 9px var(--display);letter-spacing:.1em;color:#ffb54d}
 .pills{display:flex;gap:8px;pointer-events:auto}
 .pills button{height:30px;padding:0 14px;border-radius:999px;border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 body.touch #cluster,body.touch #incl,body.touch #tMenu,body.touch #tCam{display:none}
-body.touch #topLeft{display:flex;gap:8px;position:absolute;left:var(--gl);top:var(--gt);pointer-events:auto}
-.neon{height:52px;min-width:64px;padding:0 10px;border-radius:12px;border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.16em}
-body.touch #mapwrap{left:calc(var(--gl) + 156px);right:auto;top:var(--gt);bottom:auto}
+body.touch #topLeft{display:flex;flex-direction:column;gap:6px;position:absolute;left:var(--gl);top:var(--gt);pointer-events:auto}
+.neon{height:42px;min-width:72px;padding:0 10px;border-radius:12px;text-transform:uppercase;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.16em}
+body.touch #mapwrap{left:calc(var(--gl) + 84px);right:auto;top:var(--gt);bottom:auto}
+#bigMap{position:fixed;inset:0;z-index:45;background:rgba(8,12,14,.86);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:auto}
+#bigMap[hidden]{display:none}
+#bigMapCv{width:min(86vh,86vw);height:min(86vh,86vw);border-radius:16px}
+#bigMap p{margin:0;color:var(--muted);font-size:13px}
 body.touch #minimap{width:84px;height:84px}
 body.touch #timer{top:var(--gt)}
 body.touch #tools{top:calc(var(--gt) + 54px)}
 body.touch #tools .tbtn{height:32px;font-size:10px}
-body.touch .pedal,body.touch .rbtn,body.touch .dbtn,body.touch #shifter{border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);letter-spacing:.18em;text-shadow:0 0 8px rgba(255,138,31,.55);box-shadow:inset 0 0 18px rgba(255,138,31,.12)}
-body.touch .pedal.down,body.touch .rbtn.down,body.touch .dbtn.down{background:rgba(255,138,31,.35);color:#fff}
-body.touch #pBrake.down{background:rgba(255,138,31,.35);color:#fff}
+body.touch .pedal,body.touch .rbtn,body.touch .dbtn,body.touch #shifter{border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);letter-spacing:.14em;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+body.touch .pedal.down,body.touch .rbtn.down,body.touch .dbtn.down{background:rgba(238,241,243,.42);color:#10161a}
+body.touch #pBrake.down{background:rgba(255,95,74,.6);color:#fff}
 body.touch .rbtn{border-radius:14px;width:84px;height:50px;font-size:11px}
 body.touch #bHand{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 138px)}
 body.touch #bDoor{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 196px)}
@@ -305,9 +319,19 @@ body.pad.touch #tachWrap{bottom:var(--gb)}
   <div id="timer"><span class="lbl">Time</span><b id="timerV">0:00.000</b></div>
   <div id="tachWrap">
     <div class="pills"><button type="button" id="pMode">4H</button><button type="button" id="pGbx">Manual</button></div>
-    <canvas id="tachDial" width="480" height="264"></canvas>
+    <div class="spd" id="spd">
+      <span class="ind" id="iTCS">TCS</span><span class="ind" id="iABS">ABS</span>
+      <div class="spd-main"><div class="rpm"><i id="spdRpm"></i></div><b id="spdV">0</b><span>km/h</span></div>
+      <div class="spd-gear"><b id="spdG">N</b><span id="spdM">AUTO</span></div>
+    </div>
   </div>
-  <div id="topLeft"><button type="button" class="neon" id="tMenu2">MENU</button><button type="button" class="neon" id="tCam2">CAMERA</button></div>
+  <div id="topLeft">
+    <button type="button" class="neon" id="tMenu2">Menu</button>
+    <button type="button" class="neon" id="tCam2">Camera</button>
+    <button type="button" class="neon" id="tSpawn">Spawn</button>
+    <button type="button" class="neon" id="tMap">Map</button>
+  </div>
+  <div id="bigMap" hidden><canvas id="bigMapCv" width="900" height="900"></canvas><p>Tap anywhere to close</p></div>
   <div id="cluster" class="panel">
     <div class="vrow"><span id="vehName">Ridgeback 4x4</span><span id="surface">Asphalt</span></div>
     <div id="driveinfo" style="display:flex;flex-direction:column;gap:8px">
@@ -1805,6 +1829,12 @@ const aiDefs = [
   { key: 'pickup', color: 0x7a2f2a, s: 0.8, dir: 1, target: 18 },
   { key: 'ridgeback', color: 0x6b6f2f, s: 0.38, dir: -1, target: 17 },
   { key: 'coupe', color: 0x23415f, s: 0.68, dir: 1, target: 20 },
+  { key: 'supra', color: 0x1f5fd1, s: 0.05, dir: 1, target: 22 },
+  { key: 'supra', color: 0xd9d9d6, s: 0.47, dir: -1, target: 21 },
+  { key: 'coupe', color: 0x8a1f1f, s: 0.15, dir: -1, target: 19 },
+  { key: 'pickup', color: 0x2b2d30, s: 0.3, dir: 1, target: 17 },
+  { key: 'ridgeback', color: 0xb8a77a, s: 0.6, dir: -1, target: 16 },
+  { key: 'coupe', color: 0x2f6b46, s: 0.88, dir: 1, target: 20 },
 ];
 for (const d of aiDefs) {
   const v = makeVehicle(d.key, d.color);
@@ -1815,7 +1845,7 @@ for (const d of aiDefs) {
 /* ------------------------------------------------------------------ camera */
 const cam = { yaw: 0, pitch: 0.28, dist: 9, free: 0, mode: 0, menuT: 0 };
 const camPos = new T.Vector3(), camLook = new T.Vector3();
-const CAM_MODES = ['Chase', 'Far', 'Driver'];
+const CAM_MODES = ['Chase', 'Far', 'Driver', 'Top-down'];
 let baseFov = 60;
 function updateCamera(dt) {
   let tx, ty, tz, h;
@@ -1831,6 +1861,12 @@ function updateCamera(dt) {
   const wantFov = baseFov + (v ? Math.min(20, Math.abs(v.speed) * 0.14) : 0) + (v && cam.mode === 2 ? 10 : 0);
   if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   if (v) person.g.visible = cam.mode !== 2;
+  if (v && cam.mode === 3) { // straight down over the car, nose pointing up the screen
+    const back = 2, up = 15 + Math.min(14, Math.abs(v.speed) * 0.18);
+    const want = new T.Vector3(v.x - Math.sin(v.yaw) * back, v.y + up, v.z - Math.cos(v.yaw) * back);
+    camPos.lerp(want, Math.min(1, dt * 8)); camera.position.copy(camPos); camera.lookAt(v.x, v.y, v.z);
+    return;
+  }
   if (v && cam.mode === 2) { // from the driver's eyes: road ahead over the hood, pillars and roof around you
     const [sx, sy, sz, sc] = v.info.seat;
     const eye = new T.Vector3(sx * 0.9, sy + 0.9 * sc, sz + 0.05).applyEuler(v.g.rotation).add(v.g.position);
@@ -2960,7 +2996,32 @@ function toggleLights() {
   const v = player.vehicle || vehicles.find(u => u.lastDriven); if (!v) return;
   v.lights = !v.lights; $('tLights').classList.toggle('on', v.lights);
 }
-function cycleCam() { cam.mode = (cam.mode + 1) % (player.vehicle ? 3 : 2); toast(`Camera: <b>${CAM_MODES[cam.mode]}</b>`, 900); }
+function spawnCar() {
+  const v = tent.car || player.vehicle; if (!v) return;
+  const px = player.vehicle ? player.vehicle.x : player.x, pz = player.vehicle ? player.vehicle.z : player.z;
+  const r = roadIdx.nearest(px, pz); let i = r.i >= 0 ? r.i : 0;
+  if (r.d === Infinity) { let best = 1e9; road.forEach((q, k) => { const d = Math.hypot(q.x - px, q.z - pz); if (d < best) { best = d; i = k; } }); }
+  const a = road[i], b = road[(i + 1) % ROAD_N], l = Math.hypot(b.x - a.x, b.z - a.z), tx = (b.x - a.x) / l, tz = (b.z - a.z) / l;
+  if (player.vehicle && player.vehicle !== v) exitVehicle();
+  v.x = a.x - tz * 2.5; v.z = a.z + tx * 2.5; v.yaw = Math.atan2(tx, tz); v.speed = 0; v.flipped = 0; poseGround(v, true);
+  if (player.onFoot) enterVehicle(v);
+  camPos.set(v.x - tx * 10, v.y + 5, v.z - tz * 10); cam.yaw = v.yaw; cam.free = 0;
+  toast(`Spawned your <b>${v.s.name}</b> on the road`, 1600);
+}
+function openBigMap() {
+  const cv = $('bigMapCv'), c = cv.getContext('2d'), W = cv.width, k = W / WORLD;
+  c.drawImage(mapCv, 0, 0, W, W);
+  const P = (x, z) => [(x + HALF) * k, (z + HALF) * k];
+  const dot = (x, z, col, r, label) => { const [a, b] = P(x, z); c.fillStyle = col; c.beginPath(); c.arc(a, b, r, 0, 6.283); c.fill(); if (label) { c.font = '700 22px Oxanium, sans-serif'; c.fillStyle = '#fff'; c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 4; const wL = c.measureText(label).width, lx = a + 14 + wL > W - 8 ? a - 14 - wL : a + 14; c.strokeText(label, lx, b + 7); c.fillText(label, lx, b + 7); } };
+  dot(HOME.x, HOME.z, '#eef2ea', 9, 'Home'); dot(CAMP.x, CAMP.z, '#ffb54d', 9, names.camp); dot(SUMMIT.x, SUMMIT.z, '#ff5f4a', 9, 'Lookout Peak');
+  if (tent.pitched) dot(tent.pitched.x, tent.pitched.z, '#d9662b', 7, 'Tent');
+  for (const v of vehicles) if (v.ai) dot(v.x, v.z, '#cfd3d6', 4);
+  const me = player.vehicle || player; const [mx, mz] = P(me.x, me.z), yaw = player.vehicle ? player.vehicle.yaw : player.yaw;
+  c.save(); c.translate(mx, mz); c.rotate(Math.atan2(Math.sin(yaw), -Math.cos(yaw))); c.fillStyle = '#fff'; c.strokeStyle = '#10201a'; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(0, -18); c.lineTo(12, 12); c.lineTo(0, 6); c.lineTo(-12, 12); c.closePath(); c.stroke(); c.fill(); c.restore();
+  $('bigMap').hidden = false;
+}
+function cycleCam() { cam.mode = (cam.mode + 1) % (player.vehicle ? 4 : 2); toast(`Camera: <b>${CAM_MODES[cam.mode]}</b>`, 900); }
 function skipHour() { timeH = (timeH + 1) % 24; toast(`Time: <b>${fmtTime(timeH)}</b>`, 900); }
 function recover() {
   const v = player.vehicle;
@@ -3004,6 +3065,9 @@ document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () =
 }));
 $('tCam').addEventListener('click', cycleCam);
 $('tCam2').addEventListener('click', cycleCam);
+$('tSpawn').addEventListener('click', () => state === 'play' && spawnCar());
+$('tMap').addEventListener('click', () => state === 'play' && openBigMap());
+$('bigMap').addEventListener('click', () => { $('bigMap').hidden = true; });
 $('tMenu2').addEventListener('click', () => pause());
 $('pMode').addEventListener('click', () => state === 'play' && cycleMode());
 $('pGbx').addEventListener('click', () => state === 'play' && toggleManual());
@@ -3125,7 +3189,7 @@ function drawMinimap(px, pz, bearing) {
 const bearingOf = (dx, dz) => ((Math.atan2(dx, -dz) * 180 / Math.PI) + 360) % 360;
 let hudT = 0, lastHint = '';
 let runT = 0;
-const tachCv = $('tachDial'), tctx = tachCv.getContext('2d');
+const tachCv = $('tachDial') || document.createElement('canvas'), tctx = tachCv.getContext('2d');
 function drawTach(v) {
   const c = tctx, W = tachCv.width, Hh = tachCv.height, cx = W / 2, cy = Hh - 12, R = 214;
   c.clearRect(0, 0, W, Hh);
@@ -3152,7 +3216,13 @@ const fmtLap = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart
 function updateHUD(dt) {
   runT += dt; $('timerV').textContent = fmtLap(runT);
   if (isTouch && player.vehicle) {
-    const v = player.vehicle; drawTach(v);
+    const v = player.vehicle;
+    const ep = ENGINES[v.key] || ENGINES.ridgeback, rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1);
+    $('spdV').textContent = Math.round(Math.abs(v.speed) * 3.6); $('spdRpm').style.width = Math.round(rn * 100) + '%';
+    $('spdG').textContent = v.mode === '4L' && /^\d$/.test(v.gear) ? 'L' + v.gear : v.gear;
+    $('spdM').textContent = v.manual && v.mode !== '4L' ? 'MANUAL' : 'AUTO';
+    $('iTCS').classList.toggle('on', !!v.slip && Math.abs(v.speed) > 1);
+    $('iABS').classList.toggle('on', !!v.brakeOn && Math.abs(v.speed) > 3);
     const ml = v.mode, gl = v.manual && v.mode !== '4L' ? 'Manual' : 'Auto';
     if ($('pMode').textContent !== ml) $('pMode').textContent = ml;
     if ($('pGbx').textContent !== gl) $('pGbx').textContent = gl;

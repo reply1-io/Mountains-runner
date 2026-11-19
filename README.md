@@ -29,7 +29,7 @@
 | M | Manual / automatic gearbox (or tap the gear) |
 | X / Z | Shift up / down (manual) |
 | L | Headlights |
-| C | Camera (chase / far / driver's view) |
+| C | Camera (chase / far / driver's view / top-down) |
 | R | Recover a stuck or rolled vehicle |
 | T | Skip one hour |
 | Esc | Pause |
@@ -56,6 +56,8 @@ On the start screen, the d-pad picks a car and A starts. In the tent menu, A sle
 
 ## Playing on a phone
 Camp With a Friend is built for phones held sideways:
+- **Side menu**: Menu, Camera, Spawn (puts your car on the nearest road with you in it) and Map (full-screen map with home, camp, the peak, your tent and traffic).
+- **Speedometer**: a compact speed pill at the bottom with gear, AUTO/MANUAL, a rev bar, and TCS/ABS lights that come on when the wheels slip or you brake hard.
 - **Controls**: steer with the ◀ ▶ buttons (on foot they become a ◀ ▲ ▼ ▶ pad), GAS and BRAKE pedals on the right. USE gets in and out of vehicles and talks to your friend. HAND is the handbrake, and it becomes JUMP on foot. UP and DN shift gears in manual. RESET recovers a stuck car.
 - **Camera**: drag the screen to look around and pinch to zoom.
 - **Screen**: Start goes full screen and locks landscape where the phone allows it, and the screen stays awake while you play.
