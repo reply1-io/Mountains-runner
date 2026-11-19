@@ -321,7 +321,7 @@ body.pad.touch #tachWrap{bottom:var(--gb)}
     <div class="pills"><button type="button" id="pMode">4H</button><button type="button" id="pGbx">Manual</button></div>
     <div class="spd" id="spd">
       <span class="ind" id="iTCS">TCS</span><span class="ind" id="iABS">ABS</span>
-      <div class="spd-main"><div class="rpm"><i id="spdRpm"></i></div><b id="spdV">0</b><span>km/h</span></div>
+      <div class="spd-main"><div class="rpm"><i id="spdRpm"></i></div><b id="spdV">0</b><span>mph</span></div>
       <div class="spd-gear"><b id="spdG">N</b><span id="spdM">AUTO</span></div>
     </div>
   </div>
@@ -335,7 +335,7 @@ body.pad.touch #tachWrap{bottom:var(--gb)}
   <div id="cluster" class="panel">
     <div class="vrow"><span id="vehName">Ridgeback 4x4</span><span id="surface">Asphalt</span></div>
     <div id="driveinfo" style="display:flex;flex-direction:column;gap:8px">
-      <div class="speedrow"><b id="speed">0</b><span class="lbl">km/h</span><button id="gear" title="Tap to switch manual / automatic (M)">N</button></div>
+      <div class="speedrow"><b id="speed">0</b><span class="lbl">mph</span><button id="gear" title="Tap to switch manual / automatic (M)">N</button></div>
       <div class="tachrow"><div class="tach"><i id="tach"></i></div><b id="rpmv">0</b><button id="gbx" class="gbx" type="button" title="Switch manual / automatic (M)">Auto</button></div>
       <div class="modes">
         <button class="mode" data-mode="2H">2H</button>
@@ -429,6 +429,7 @@ const store = {
 };
 let gearPref = store.get('mr.gear', 'manual'); // E30 gearbox: 'manual' or 'auto'
 const names = { camp: store.get('mr.camp', 'Pine Hollow Camp'), friend: store.get('mr.friend', 'Sam') };
+const MPH = 2.23694; // metres per second -> miles per hour, for every speed you see
 const buzz = ms => {
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* no haptics */ }
   try {
@@ -1118,7 +1119,7 @@ const SPECS = {
   ridgeback: { name: 'Ridgeback 4x4', kind: 'Overland SUV', len: 4.8, wid: 2.0, wb: 2.85, track: 1.72, wr: 0.47, ww: 0.38, clear: 0.5, max: 140, low: 32, accel: 5.2, awd: true, off: 0.95, roll: 0.8, color: 0x2f4a6b, stats: [3, 5, 3], cam: 9 },
   coupe: { name: "Coupe '87", kind: 'E30-style · M20 2.5 straight-six · 5-speed manual', mesh: true, gripK: 1.05, len: 4.3, wid: 1.68, wb: 2.57, track: 1.44, wr: 0.32, ww: 0.24, clear: 0.13, max: 240, low: 0, accel: 8.4, awd: false, off: 0.55, roll: 1.0, color: 0x15161a, stats: [5, 1, 2], cam: 7.5 },
   supra: { name: 'GT Turbo 98', kind: 'Supra-style big-turbo coupe', len: 4.52, wid: 1.81, wb: 2.55, track: 1.52, wr: 0.34, ww: 0.28, clear: 0.12, max: 330, low: 0, accel: 11.5, awd: false, off: 0.5, roll: 1.0, color: 0xe9761c, stats: [5, 1, 3], cam: 8, turbo: { spool: 1.1, psi: 32 }, gripK: 1.18, dragK: 0.62, chromeRim: true },
-  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 10,000 km/h · the fastest thing ever', wrap: true, instantBrake: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
+  p50: { rimColor: 0xe8e6e0, name: 'Pocket 50 Turbo', kind: 'P50-style microcar · 6,200 mph · the fastest thing ever', wrap: true, instantBrake: true, len: 1.37, wid: 1.04, wb: 0.95, track: 0.85, wr: 0.17, ww: 0.12, clear: 0.1, max: 10000, low: 0, accel: 520, awd: false, off: 1, roll: 0.62, color: 0xf1efe9, stats: [5, 1, 1], cam: 6.5, turbo: { spool: 1.6, psi: 250 }, gripK: 60, dragK: 0.0004, three: true },
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
@@ -3208,8 +3209,8 @@ function drawTach(v) {
   const a = ang(rpm);
   c.beginPath(); c.moveTo(cx + Math.cos(a) * 40, cy + Math.sin(a) * 40); c.lineTo(cx + Math.cos(a) * (R - 18), cy + Math.sin(a) * (R - 18));
   c.lineWidth = 6; c.strokeStyle = '#ff8a1f'; c.shadowColor = '#ff8a1f'; c.shadowBlur = 14; c.stroke(); c.shadowBlur = 0;
-  c.fillStyle = '#fff'; c.font = '800 84px Oxanium, sans-serif'; c.fillText(String(Math.round(Math.abs(v.speed) * 3.6)), cx, cy - 66);
-  c.fillStyle = '#ffb066'; c.font = '700 22px Oxanium, sans-serif'; c.fillText('KM/H', cx, cy - 16);
+  c.fillStyle = '#fff'; c.font = '800 84px Oxanium, sans-serif'; c.fillText(String(Math.round(Math.abs(v.speed) * MPH)), cx, cy - 66);
+  c.fillStyle = '#ffb066'; c.font = '700 22px Oxanium, sans-serif'; c.fillText('MPH', cx, cy - 16);
   c.fillStyle = '#ffd2a4'; c.font = '800 34px Oxanium, sans-serif'; c.textAlign = 'left'; c.fillText(v.gear, cx + 70, cy - 26);
 }
 const fmtLap = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${String(Math.floor((t % 1) * 1000)).padStart(3, '0')}`;
@@ -3218,7 +3219,7 @@ function updateHUD(dt) {
   if (isTouch && player.vehicle) {
     const v = player.vehicle;
     const ep = ENGINES[v.key] || ENGINES.ridgeback, rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1);
-    $('spdV').textContent = Math.round(Math.abs(v.speed) * 3.6); $('spdRpm').style.width = Math.round(rn * 100) + '%';
+    $('spdV').textContent = Math.round(Math.abs(v.speed) * MPH); $('spdRpm').style.width = Math.round(rn * 100) + '%';
     $('spdG').textContent = v.mode === '4L' && /^\d$/.test(v.gear) ? 'L' + v.gear : v.gear;
     $('spdM').textContent = v.manual && v.mode !== '4L' ? 'MANUAL' : 'AUTO';
     $('iTCS').classList.toggle('on', !!v.slip && Math.abs(v.speed) > 1);
@@ -3257,7 +3258,7 @@ function updateHUD(dt) {
     $('vehName').textContent = v.s.name;
     $('surface').textContent = SURF[v.surf].name + (v.slip ? ' · slipping' : '');
     $('surface').style.color = v.slip ? 'var(--warn)' : 'var(--accent)';
-    $('speed').textContent = Math.round(Math.abs(v.speed) * 3.6);
+    $('speed').textContent = Math.round(Math.abs(v.speed) * MPH);
     $('gear').textContent = v.mode === '4L' && v.gear !== 'N' && v.gear !== 'R' ? 'L' + v.gear : v.gear;
     $('dmg').style.width = v.damage + '%'; $('dmgv').textContent = Math.round(v.damage) + '%';
     $('dmg').style.background = v.damage > 60 ? 'var(--danger)' : 'var(--warn)';
