@@ -1044,8 +1044,62 @@ const homeWin = new T.MeshLambertMaterial({ color: 0x8fb3c9, emissive: 0x000000 
   mg.position.set(mb.x, gridH(mb.x, mb.z), mb.z); mg.rotation.y = yaw; scene.add(mg);
 }
 
+/* tire smoke and skid marks: whenever the driven wheels slip (burnouts, donuts, drifts) */
+const tireFx = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d');
+  const g = c.createRadialGradient(32, 32, 2, 32, 32, 31); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(240,240,240,.55)'); g.addColorStop(1, 'rgba(240,240,240,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  const tex = new T.CanvasTexture(cv), smoke = [];
+  for (let i = 0; i < 160; i++) {
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, color: 0xe9ecee, transparent: true, opacity: 0, depthWrite: false }));
+    sp.visible = false; scene.add(sp); smoke.push({ sp, life: 0, max: 1, vx: 0, vy: 0, vz: 0, s0: 1 });
+  }
+  const pg = new T.PlaneGeometry(0.3, 1); pg.rotateX(-Math.PI / 2);
+  const marks = new T.InstancedMesh(pg, new T.MeshBasicMaterial({ color: 0x141414, transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }), 900);
+  const hide = new T.Matrix4().makeScale(0, 0, 0); for (let i = 0; i < 900; i++) marks.setMatrixAt(i, hide);
+  marks.frustumCulled = false; marks.renderOrder = 1; scene.add(marks);
+  return { smoke, marks, si: 0, mi: 0, last: new Map(), acc: 0 };
+})();
+const fxObj = new T.Object3D();
+function updateTireFx(dt) {
+  const F = tireFx;
+  for (const p of F.smoke) {
+    if (p.life <= 0) continue;
+    p.life -= dt; const k = 1 - p.life / p.max;
+    p.sp.position.x += p.vx * dt; p.sp.position.y += p.vy * dt; p.sp.position.z += p.vz * dt; p.vx *= 0.97; p.vz *= 0.97;
+    const sc = p.s0 + k * 5.5; p.sp.scale.set(sc, sc, sc); p.sp.material.opacity = 0.5 * (1 - k) * Math.min(1, k * 6);
+    if (p.life <= 0) p.sp.visible = false;
+  }
+  const v = player.vehicle; if (!v) return;
+  const spinning = v.slip && !v.air && (v.burn || Math.abs(v.speed) > 3) && v.throttle > 0 || (v.slip && Math.abs(v.latAcc) > 6);
+  const c = Math.cos(v.yaw), sn = Math.sin(v.yaw), hw = v.s.track / 2, hb = v.s.wb / 2;
+  const wheels = v.s.three ? [[0, -hb]] : [[hw, -hb], [-hw, -hb]];
+  wheels.forEach(([lx, lz], wi) => {
+    const x = v.x + lx * c + lz * sn, z = v.z - lx * sn + lz * c, y = groundH(x, z), key = v.key + wi, last = F.last.get(key);
+    if (spinning) {
+      F.acc += dt * (v.burn ? 70 : 40);
+      while (F.acc > 1) {                                   // puff of smoke from the tire
+        F.acc -= 1; const p = F.smoke[F.si]; F.si = (F.si + 1) % F.smoke.length;
+        p.max = p.life = 1.6 + Math.random() * 1.2; p.s0 = 0.6 + Math.random() * 0.5;
+        p.sp.position.set(x + (Math.random() - 0.5) * 0.4, y + 0.25, z + (Math.random() - 0.5) * 0.4);
+        p.vx = -sn * (2 + Math.random() * 2) + (Math.random() - 0.5) * 1.5; p.vz = -c * (2 + Math.random() * 2) + (Math.random() - 0.5) * 1.5; p.vy = 0.6 + Math.random() * 0.8;
+        p.sp.visible = true;
+      }
+      // a strip of rubber on the road between where the tire was and where it is
+      const from = last || { x: x - sn * 0.5, z: z - c * 0.5 }, d = Math.hypot(x - from.x, z - from.z);
+      if (!last && !v.burn) F.last.set(key, { x, z });            // start of a slide: remember where the tire is
+      else if (d > 0.35 || (v.burn && !last)) {
+        const len = Math.max(0.35, Math.min(d, 3)), mx = (x + from.x) / 2, mz = (z + from.z) / 2;
+        fxObj.position.set(mx, groundH(mx, mz) + 0.04, mz); fxObj.rotation.set(0, d > 0.01 ? Math.atan2(x - from.x, z - from.z) : v.yaw, 0); fxObj.scale.set(1, 1, len); fxObj.updateMatrix();
+        F.marks.setMatrixAt(F.mi, fxObj.matrix); F.mi = (F.mi + 1) % 900; F.marks.instanceMatrix.needsUpdate = true;
+        F.last.set(key, { x, z });
+      }
+    } else F.last.delete(key);
+  });
+}
+
 /* the tent you carry: packed in the back of your car, pitch it anywhere */
-const TENT_BAG = { ridgeback: [0, 2.42, -1.2], coupe: [0, 1.55, -0.35], supra: [0, 1.3, -0.6], p50: [0, 1.33, 0.2], pickup: [-0.35, 1.15, -1.9], hauler: [0, 3.95, -2] };
+const TENT_BAG = { vette: [0, 1.3, -0.75], ridgeback: [0, 2.42, -1.2], coupe: [0, 1.55, -0.35], supra: [0, 1.3, -0.6], p50: [0, 1.33, 0.2], pickup: [-0.35, 1.15, -1.9], hauler: [0, 3.95, -2] };
 const tent = { car: null, bag: null, pitched: null };
 function packTentInto(v) {
   if (tent.bag) tent.bag.parent.remove(tent.bag);
@@ -1123,7 +1177,8 @@ const SPECS = {
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
-const ORDER = ['ridgeback', 'coupe', 'supra', 'p50', 'pickup'];
+SPECS.vette = { name: 'Z-7 V8', kind: 'C7-style supercharged V8 sports car · RWD', len: 4.5, wid: 1.95, wb: 2.71, track: 1.65, wr: 0.34, ww: 0.3, clear: 0.12, max: 314, low: 0, accel: 12.5, awd: false, off: 0.5, roll: 1.0, color: 0x2a54b8, stats: [5, 1, 3], cam: 8, gripK: 1.2, dragK: 0.6, rimColor: 0x1c1e20 };
+const ORDER = ['ridgeback', 'coupe', 'vette', 'supra', 'p50', 'pickup'];
 
 const BUILD = {
   ridgeback(b, s, m) {
@@ -1201,6 +1256,34 @@ const BUILD = {
     box(W * 0.86, 0.035, 0.24, m.paint, 0, belt + 0.115, -L / 2 + 0.22, b).rotation.x = -0.06;
     const ex = mesh(new T.CylinderGeometry(0.04, 0.04, 0.12, 8), m.chrome, -0.5, sill + 0.03, -L / 2 - 0.08, b, false); ex.rotation.x = Math.PI / 2;
     return { front: L / 2, lightY: 0.72, lightX: 0.58, hood: [1.1, 0.9], seat: [W * 0.21, 0.5, 0.0, 0.72] };
+  },
+  vette(b, s, m) {
+    // C7-style: very low and wide, long hood, cab set well back, fastback glass, side vents, quad centre exhausts
+    const W = s.wid, L = s.len, y0 = s.wr - 0.04, base = y0 + 0.4, gh = 0.42;
+    box(W, 0.4, L - 1.0, m.paint, 0, y0 + 0.2, -0.5, b);
+    frustum(W, W * 0.94, 0.4, 1.0, 0.45, -0.25, m.paint, 0, y0, L / 2 - 0.5, b);                    // long sloping nose
+    for (const z of [s.wb / 2, -s.wb / 2]) box(W + 0.1, 0.22, s.wr * 2.5, m.paint, 0, s.wr * 2 - 0.05, z, b);
+    box(W + 0.04, 0.08, s.wb - s.wr * 2.5, m.black, 0, y0 + 0.04, 0, b);
+    const gb = W * 0.86, gt = W * 0.72, lb = 2.3, lt = 1.0, zc = -0.55, zt = -0.4;
+    frustum(gb, gt, gh, lb, lt, zt, m.glass, 0, base, zc, b);
+    frustum(gt + 0.02, gt - 0.06, 0.04, lt + 0.04, lt - 0.1, 0, m.paint, 0, base + gh, zc + zt, b);
+    box(gb + 0.012, 0.03, lb, m.black, 0, base + 0.015, zc, b);
+    const zf0 = zc + lb / 2, zf1 = zc + zt + lt / 2, zr0 = zc - lb / 2, zr1 = zc + zt - lt / 2;
+    for (const x of [-1, 1]) {
+      beam([x * gb / 2, base, zf0], [x * gt / 2, base + gh, zf1], 0.07, m.black, b);              // black A pillars
+      beam([x * gb / 2, base, zr0], [x * gt / 2, base + gh, zr1], 0.09, m.paint, b);
+      box(0.02, 0.16, 0.5, m.black, x * (W / 2 + 0.006), y0 + 0.24, s.wb / 2 - 0.85, b);           // side vent behind front wheel
+      box(0.02, 0.12, 0.4, m.black, x * (W / 2 + 0.006), y0 + 0.3, -s.wb / 2 + 0.75, b);          // rear quarter vent
+      box(0.12, 0.07, 0.14, m.black, x * (W / 2 + 0.05), base + 0.06, 0.55, b);                  // mirror
+      box(0.4, 0.06, 0.2, m.light, x * 0.62, y0 + 0.34, L / 2 - 0.38, b).rotation.x = -0.5;      // slim headlights
+      const t = box(0.42, 0.08, 0.04, m.tail, x * 0.58, y0 + 0.33, -L / 2 - 0.01, b); t.rotation.z = x * 0.18;  // angular tail lights
+      for (const dx of [0.1, 0.28]) { const e = mesh(new T.CylinderGeometry(0.05, 0.05, 0.12, 10), m.chrome, x * dx, y0 + 0.06, -L / 2 - 0.05, b, false); e.rotation.x = Math.PI / 2; }
+    }
+    box(W * 0.92, 0.16, 0.04, m.black, 0, y0 + 0.18, -L / 2 - 0.005, b);                             // rear diffuser panel
+    box(W * 0.8, 0.05, 0.22, m.paint, 0, y0 + 0.43, -L / 2 + 0.12, b).rotation.x = 0.2;              // ducktail spoiler
+    box(W * 0.55, 0.12, 0.04, m.black, 0, y0 + 0.12, L / 2 + 0.005, b);                              // big lower grille
+    box(0.5, 0.02, 0.4, m.black, 0, y0 + 0.405, 1.0, b);                                             // hood vent
+    return { front: L / 2 - 0.2, lightY: y0 + 0.34, lightX: 0.62, hood: [y0 + 0.75, 0.9], seat: [W * 0.21, y0 + 0.18, -0.45, 0.56] };
   },
   supra(b, s, m) {
     // Supra-style big-turbo coupe: long rounded nose, fastback glass, hoop wing, round tail lamps
@@ -1484,6 +1567,8 @@ function driveVehicle(v, inp, dt) {
     if (!inp.gas && !inp.brake) decel = Math.max(decel, low ? traction : 0.35);
     if (v.belly > s.clear) { decel = Math.max(decel, 4 + (v.belly - s.clear) * 30); if (Math.abs(v.speed) > 2) v.damage = Math.min(100, v.damage + dt * 4); }
   } else a = -9.8 * Math.sin(v.pitch) * 0.2;
+  v.burn = !lowAir && !!(inp.gas && inp.brake) && Math.abs(v.speed) < 5;
+  if (v.burn) { a = 0; decel = Math.max(decel, 30); v.slip = true; }
   const prev = v.speed;
   v.speed += a * dt;
   if (decel > 0) { const d = decel * dt; v.speed = Math.abs(v.speed) <= d ? 0 : v.speed - Math.sign(v.speed) * d; }
@@ -1548,6 +1633,7 @@ function driveVehicle(v, inp, dt) {
   if (v.slip && inp.gas) v.rpm = Math.min(1, v.rpm + 0.3);
   if (sp < 1.5 && inp.gas) v.rpm = Math.max(v.rpm, 0.55); // launch revs
   if (v.manual && !low) { v.gear = v.mg > 0 ? String(v.mg) : v.mg === 0 ? 'N' : 'R'; v.rpm = v.rpmM; }
+  if (v.burn) { v.rpm = 0.8 + Math.random() * 0.1; if (v.gear === 'N') v.gear = '1'; }
   v.rpmS += (v.rpm - v.rpmS) * Math.min(1, dt * 24); // revs drop quickly on an upshift
   if (v.limiter) v.rpmS = 0.97 + Math.random() * 0.05;
 }
@@ -1831,6 +1917,7 @@ const aiDefs = [
   { key: 'ridgeback', color: 0x6b6f2f, s: 0.38, dir: -1, target: 17 },
   { key: 'coupe', color: 0x23415f, s: 0.68, dir: 1, target: 20 },
   { key: 'supra', color: 0x1f5fd1, s: 0.05, dir: 1, target: 22 },
+  { key: 'vette', color: 0x2a54b8, s: 0.25, dir: -1, target: 23 },
   { key: 'supra', color: 0xd9d9d6, s: 0.47, dir: -1, target: 21 },
   { key: 'coupe', color: 0x8a1f1f, s: 0.15, dir: -1, target: 19 },
   { key: 'pickup', color: 0x2b2d30, s: 0.3, dir: 1, target: 17 },
@@ -1996,6 +2083,7 @@ const ENGINES = {
   // individual-throttle-body intake give the sharp, raspy howl
   coupe: { cyl: 6, wk: { header: 1.041, pipe: 1.326, muffle: 0.061, rough: 1.2, uneven: 0.008, body: 0.233, fall: 0.601, rise: 0.12, nzT: 3, fcBase: 787.711, fcRange: 4376.862, hp: 215.869, top: 5815.578, wobble: 0.55, vary: 0.4, r1: 0.257, r2: 0.3, pkF: 3000, pkG: 0.771, pkQ: 0.663 },
     idle: 900, red: 6500, tone: 0.85, rough: 0.35, sub: 0, cut: 2600, turbo: 0, vol: 1, pops: true },
+  vette: { cyl: 8, wk: { header: 0.7, pipe: 3.0, muffle: 0.25, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.7, fall: 1.2, rise: 0.18, nzT: 1.3, fcBase: 650, fcRange: 2000, hp: 200, top: 5000, wobble: 0.6, vary: 0.45, r1: 0.25, r2: 0.25, pkF: 1500, pkG: 6, pkQ: 0.7 }, idle: 700, red: 6500, tone: 1.1, rough: 0.35, sub: 0.5, cut: 1400, turbo: 0, vol: 1.15, pops: true },
   supra: { cyl: 6, wk: { header: 0.45, pipe: 2.8, muffle: 0.2, rough: 0.7, uneven: 0.01, body: 0.3, fall: 1.0, rise: 0.15, nzT: 1.3, fcBase: 900.0, fcRange: 2300.0, hp: 330.0, top: 5500.0, wobble: 0.5, vary: 0.4, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 9, pkQ: 0.7 },  idle: 900, red: 7600, tone: 1.1, rough: 0.25, sub: 0.05, cut: 2200, turbo: 1, vol: 1 },          // big-turbo straight-six
   p50: { cyl: 2, wk: { header: 0.25, pipe: 0.7, muffle: 0.15, rough: 1.0, uneven: 0.05, body: 0.3, fall: 0.6, rise: 0.12, nzT: 1.0, fcBase: 1200.0, fcRange: 3000.0, hp: 450.0, top: 6500.0, wobble: 1.0, vary: 0.6, r1: 0.3, r2: 0.3, pkF: 2500, pkG: 7, pkQ: 0.7 },  idle: 2400, red: 11500, tone: 0.75, rough: 0.5, sub: 0, cut: 3400, turbo: 2.2, bovK: 2, vol: 0.75 },          // screaming two-stroke single
   pickup: { cyl: 8, wk: { header: 0.7, pipe: 3.2, muffle: 0.35, rough: 0.6, uneven: 0.02, crossplane: true, body: 0.6, fall: 1.3, rise: 0.2, nzT: 1.4, fcBase: 600.0, fcRange: 1800.0, hp: 220.0, top: 4000.0, wobble: 0.7, vary: 0.5, r1: 0.3, r2: 0.3, pkF: 1800, pkG: 5, pkQ: 0.7 },  idle: 650, red: 5600, tone: 1.15, rough: 0.35, sub: 0.6, cut: 1200, turbo: 0, vol: 1.1 },       // cross-plane V8
@@ -2779,7 +2867,7 @@ const sfx = (() => {
       if (ctx && E && !E.m20Loading) {
         E.m20Loading = M20EngineSound.create(ctx).then(m => {
           const g = ctx.createGain(); g.gain.value = 0; m.connect(g); g.connect(ctx.destination);
-          m.direct({ idleRpm: ENGINES.coupe.idle }); m.setExhaust('stock');
+          m.direct({ idleRpm: ENGINES.coupe.idle }); m.setExhaust('stock'); E.m20Eng = 'm20';
           E.m20 = { m, g };
         }).catch(e => console.warn('M20 engine sound unavailable:', e));
       }
@@ -2806,7 +2894,8 @@ const sfx = (() => {
       set(E.master.gain, (0.045 + thr * 0.065 + rn * 0.045) * p.vol * (v.limiter && Math.random() < 0.5 ? 0.25 : 1), v.limiter ? 0.005 : 0.06);
       // a sound file the player picked for the E30: loop its steadiest part and re-pitch it to the current rpm
       const useC = !!(customSound && v.key === 'coupe');
-      const useM20 = !!(E.m20 && v.key === 'coupe' && !useC);
+      const useM20 = !!(E.m20 && (v.key === 'coupe' || v.key === 'vette') && !useC);
+      if (useM20) { const want = v.key === 'vette' ? 'ls3' : 'm20'; if (E.m20.eng !== want) { E.m20.m.setEngine(want); E.m20.eng = want; } }
       if (E.m20) {
         if (useM20) E.m20.m.setState({ rpm, throttle: thr, ignition: 1, starter: 0 });
         set(E.m20.g.gain, useM20 ? 0.55 : 0, 0.05);
@@ -3424,6 +3513,7 @@ function frame(now) {
     sfx.engine(null);
   }
   for (const v of vehicles) renderVehicle(v, dt);
+  updateTireFx(dt);
   updateCamera(dt);
   updateChunks(camera.position.x, camera.position.z);
   const v = player.vehicle;
@@ -3434,7 +3524,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { pad, pollPad, drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { updateTireFx, tireFx, pad, pollPad, drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
