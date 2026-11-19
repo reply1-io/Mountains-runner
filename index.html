@@ -1177,7 +1177,7 @@ const SPECS = {
   pickup: { name: 'Haulmark Pickup', kind: '4x4 pickup truck', len: 5.4, wid: 1.95, wb: 3.3, track: 1.68, wr: 0.43, ww: 0.32, clear: 0.42, max: 165, low: 30, accel: 5.0, awd: true, off: 0.86, roll: 0.82, color: 0x3d5a3a, stats: [4, 4, 4], cam: 9.5 },
   hauler: { name: 'Freight Hauler', kind: 'Box truck', len: 8.2, wid: 2.45, wb: 5.0, track: 2.0, wr: 0.55, ww: 0.4, clear: 0.38, max: 105, low: 0, accel: 2.7, awd: false, off: 0.62, roll: 0.7, color: 0xe9e5dc, stats: [2, 2, 5], cam: 14 },
 };
-SPECS.vette = { name: 'Z-7 V8', kind: 'C7-style supercharged V8 sports car · RWD', len: 4.5, wid: 1.95, wb: 2.71, track: 1.65, wr: 0.34, ww: 0.3, clear: 0.12, max: 314, low: 0, accel: 12.5, awd: false, off: 0.5, roll: 1.0, color: 0x2a54b8, stats: [5, 1, 3], cam: 8, gripK: 1.2, dragK: 0.6, rimColor: 0x1c1e20 };
+SPECS.vette = { name: 'Z-7 V8', kind: 'C7-style supercharged V8 sports car · RWD', len: 4.5, wid: 1.95, wb: 2.71, track: 1.67, wr: 0.35, ww: 0.33, clear: 0.12, max: 314, low: 0, accel: 12.5, awd: false, off: 0.5, roll: 1.0, color: 0x2a54b8, stats: [5, 1, 3], cam: 8, gripK: 1.2, dragK: 0.6, rimColor: 0x1c1e20 };
 const ORDER = ['ridgeback', 'coupe', 'vette', 'supra', 'p50', 'pickup'];
 
 const BUILD = {
@@ -1258,32 +1258,40 @@ const BUILD = {
     return { front: L / 2, lightY: 0.72, lightX: 0.58, hood: [1.1, 0.9], seat: [W * 0.21, 0.5, 0.0, 0.72] };
   },
   vette(b, s, m) {
-    // C7-style: very low and wide, long hood, cab set well back, fastback glass, side vents, quad centre exhausts
-    const W = s.wid, L = s.len, y0 = s.wr - 0.04, base = y0 + 0.4, gh = 0.42;
-    box(W, 0.4, L - 1.0, m.paint, 0, y0 + 0.2, -0.5, b);
-    frustum(W, W * 0.94, 0.4, 1.0, 0.45, -0.25, m.paint, 0, y0, L / 2 - 0.5, b);                    // long sloping nose
-    for (const z of [s.wb / 2, -s.wb / 2]) box(W + 0.1, 0.22, s.wr * 2.5, m.paint, 0, s.wr * 2 - 0.05, z, b);
-    box(W + 0.04, 0.08, s.wb - s.wr * 2.5, m.black, 0, y0 + 0.04, 0, b);
-    const gb = W * 0.86, gt = W * 0.72, lb = 2.3, lt = 1.0, zc = -0.55, zt = -0.4;
-    frustum(gb, gt, gh, lb, lt, zt, m.glass, 0, base, zc, b);
-    frustum(gt + 0.02, gt - 0.06, 0.04, lt + 0.04, lt - 0.1, 0, m.paint, 0, base + gh, zc + zt, b);
-    box(gb + 0.012, 0.03, lb, m.black, 0, base + 0.015, zc, b);
+    // C7-style: low and wide, muscular rear haunches, long bulged hood, cab set back under a fastback,
+    // dark tint and a black roof, big side vents and rear scoops, tall tail with a diffuser and four centre pipes
+    const W = s.wid, L = s.len, y0 = s.wr - 0.04, carbon = M(0x15171a), tint = M(0x0c1216);
+    box(W * 0.98, 0.34, L - 0.9, m.paint, 0, y0 + 0.17, -0.45, b);                                   // tub
+    frustum(W * 0.98, W * 0.9, 0.34, 0.9, 0.42, -0.24, m.paint, 0, y0, L / 2 - 0.45, b);             // sharp nose
+    frustum(W * 0.98, W * 0.86, 0.15, 1.6, 1.3, -0.05, m.paint, 0, y0 + 0.34, -L / 2 + 0.8, b);      // raised rear deck
+    frustum(W * 0.9, W * 0.55, 0.07, 1.5, 1.1, -0.1, m.paint, 0, y0 + 0.34, 1.0, b);                 // hood power bulge
+    box(W + 0.14, 0.32, 1.25, m.paint, 0, y0 + 0.4, -s.wb / 2, b);                                   // wide rear haunches
+    box(W + 0.06, 0.22, 1.05, m.paint, 0, y0 + 0.36, s.wb / 2, b);                                   // front fenders
+    box(W + 0.04, 0.07, s.wb - s.wr * 2.4, carbon, 0, y0 + 0.03, 0, b);                              // side skirts
+    // cabin: dark tint, black roof, fastback
+    const base = y0 + 0.4, gh = 0.44, gb = W * 0.82, gt = W * 0.66, lb = 2.0, lt = 0.85, zc = -0.4, zt = -0.4;
+    frustum(gb, gt, gh, lb, lt, zt, tint, 0, base, zc, b);
+    frustum(gt + 0.02, gt - 0.08, 0.04, lt + 0.06, lt - 0.12, 0, carbon, 0, base + gh, zc + zt, b);
     const zf0 = zc + lb / 2, zf1 = zc + zt + lt / 2, zr0 = zc - lb / 2, zr1 = zc + zt - lt / 2;
     for (const x of [-1, 1]) {
-      beam([x * gb / 2, base, zf0], [x * gt / 2, base + gh, zf1], 0.07, m.black, b);              // black A pillars
-      beam([x * gb / 2, base, zr0], [x * gt / 2, base + gh, zr1], 0.09, m.paint, b);
-      box(0.02, 0.16, 0.5, m.black, x * (W / 2 + 0.006), y0 + 0.24, s.wb / 2 - 0.85, b);           // side vent behind front wheel
-      box(0.02, 0.12, 0.4, m.black, x * (W / 2 + 0.006), y0 + 0.3, -s.wb / 2 + 0.75, b);          // rear quarter vent
-      box(0.12, 0.07, 0.14, m.black, x * (W / 2 + 0.05), base + 0.06, 0.55, b);                  // mirror
-      box(0.4, 0.06, 0.2, m.light, x * 0.62, y0 + 0.34, L / 2 - 0.38, b).rotation.x = -0.5;      // slim headlights
-      const t = box(0.42, 0.08, 0.04, m.tail, x * 0.58, y0 + 0.33, -L / 2 - 0.01, b); t.rotation.z = x * 0.18;  // angular tail lights
-      for (const dx of [0.1, 0.28]) { const e = mesh(new T.CylinderGeometry(0.05, 0.05, 0.12, 10), m.chrome, x * dx, y0 + 0.06, -L / 2 - 0.05, b, false); e.rotation.x = Math.PI / 2; }
+      beam([x * gb / 2, base, zf0], [x * gt / 2, base + gh, zf1], 0.07, carbon, b);
+      beam([x * gb / 2, base, zr0], [x * gt / 2, base + gh, zr1], 0.16, m.paint, b);                 // thick sail panel
+      box(0.03, 0.22, 0.6, carbon, x * (W / 2 + 0.03), y0 + 0.26, s.wb / 2 - 0.92, b);             // big side vent
+      box(0.04, 0.12, 0.5, carbon, x * (W / 2 + 0.08), y0 + 0.5, -s.wb / 2 + 0.4, b);              // rear brake scoop on the haunch
+      box(0.12, 0.07, 0.14, carbon, x * (W / 2 + 0.03), base + 0.08, 0.5, b);                      // mirror
+      const hl = box(0.42, 0.05, 0.2, m.light, x * 0.6, y0 + 0.33, L / 2 - 0.4, b); hl.rotation.set(-0.45, x * 0.2, 0);  // narrow angled headlights
+      for (const [dx, dy, rz] of [[0.48, 0.5, 0.25], [0.74, 0.46, 0.1]]) {                         // two angular tail lights each side
+        const t = box(0.26, 0.07, 0.04, m.tail, x * dx, y0 + dy, -L / 2 - 0.01, b); t.rotation.z = x * rz;
+      }
     }
-    box(W * 0.92, 0.16, 0.04, m.black, 0, y0 + 0.18, -L / 2 - 0.005, b);                             // rear diffuser panel
-    box(W * 0.8, 0.05, 0.22, m.paint, 0, y0 + 0.43, -L / 2 + 0.12, b).rotation.x = 0.2;              // ducktail spoiler
-    box(W * 0.55, 0.12, 0.04, m.black, 0, y0 + 0.12, L / 2 + 0.005, b);                              // big lower grille
-    box(0.5, 0.02, 0.4, m.black, 0, y0 + 0.405, 1.0, b);                                             // hood vent
-    return { front: L / 2 - 0.2, lightY: y0 + 0.34, lightX: 0.62, hood: [y0 + 0.75, 0.9], seat: [W * 0.21, y0 + 0.18, -0.45, 0.56] };
+    box(W * 0.94, 0.42, 0.06, m.paint, 0, y0 + 0.3, -L / 2 - 0.01, b);                              // tall tail panel
+    box(W * 0.86, 0.15, 0.14, carbon, 0, y0 + 0.08, -L / 2 - 0.05, b);                               // diffuser
+    for (const dx of [-0.27, -0.11, 0.11, 0.27]) { const e = mesh(new T.CylinderGeometry(0.055, 0.055, 0.14, 12), m.chrome, dx, y0 + 0.13, -L / 2 - 0.1, b, false); e.rotation.x = Math.PI / 2; }
+    box(W * 0.82, 0.05, 0.2, carbon, 0, y0 + 0.55, -L / 2 + 0.12, b).rotation.x = 0.25;               // spoiler lip
+    box(W * 1.0, 0.04, 0.3, carbon, 0, y0 + 0.02, L / 2 - 0.08, b);                                  // front splitter
+    box(W * 0.6, 0.14, 0.04, carbon, 0, y0 + 0.13, L / 2 + 0.005, b);                                // wide lower grille
+    box(0.55, 0.02, 0.35, carbon, 0, y0 + 0.415, 1.05, b);                                            // hood vent
+    return { front: L / 2 - 0.2, lightY: y0 + 0.33, lightX: 0.6, hood: [y0 + 0.75, 0.9], seat: [W * 0.21, y0 + 0.16, -0.45, 0.55] };
   },
   supra(b, s, m) {
     // Supra-style big-turbo coupe: long rounded nose, fastback glass, hoop wing, round tail lamps
