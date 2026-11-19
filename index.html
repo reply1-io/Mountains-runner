@@ -233,6 +233,38 @@ body.touch .keys{display:none}
   .soundrow{padding:6px 10px;flex-wrap:nowrap}
   #sndStatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
 }
+/* phone controls, styled like The Art of Touge: glowing orange outlines */
+:root { --neon: #ff8a1f; --neon-ink: #ffb066; --neon-bg: rgba(24, 12, 2, .38); }
+#timer{position:absolute;right:var(--gr);top:calc(var(--gt) + 52px);display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
+#timer b{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 1px 6px rgba(0,0,0,.5)}
+#tachWrap,#topLeft,#bClutch{display:none}
+body.touch #tachWrap{display:flex;flex-direction:column;align-items:center;gap:4px;position:absolute;left:50%;transform:translateX(-50%);bottom:var(--gb);pointer-events:none}
+body.touch.onfoot #tachWrap{display:none}
+#tachDial{width:240px;height:132px}
+.pills{display:flex;gap:8px;pointer-events:auto}
+.pills button{height:30px;padding:0 14px;border-radius:999px;border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+body.touch #cluster,body.touch #incl,body.touch #tMenu,body.touch #tCam{display:none}
+body.touch #topLeft{display:flex;gap:8px;position:absolute;left:var(--gl);top:var(--gt);pointer-events:auto}
+.neon{height:52px;min-width:64px;padding:0 10px;border-radius:12px;border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.16em}
+body.touch #mapwrap{left:calc(var(--gl) + 156px);right:auto;top:var(--gt);bottom:auto}
+body.touch #minimap{width:84px;height:84px}
+body.touch #timer{top:var(--gt)}
+body.touch #tools{top:calc(var(--gt) + 54px)}
+body.touch #tools .tbtn{height:32px;font-size:10px}
+body.touch .pedal,body.touch .rbtn,body.touch .dbtn,body.touch #shifter{border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);letter-spacing:.18em;text-shadow:0 0 8px rgba(255,138,31,.55);box-shadow:inset 0 0 18px rgba(255,138,31,.12)}
+body.touch .pedal.down,body.touch .rbtn.down,body.touch .dbtn.down{background:rgba(255,138,31,.35);color:#fff}
+body.touch #pBrake.down{background:rgba(255,138,31,.35);color:#fff}
+body.touch .rbtn{border-radius:14px;width:84px;height:50px;font-size:11px}
+body.touch #bHand{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 138px)}
+body.touch #bDoor{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 196px)}
+body.touch #bClutch{display:block;left:calc(var(--gl) + 8px);bottom:calc(var(--gb) + 108px);width:184px;height:56px;font-size:15px}
+body.touch:not(.manual) #bClutch,body.touch.onfoot #bClutch{display:none}
+#shifter{display:none;position:absolute;right:var(--gr);bottom:calc(var(--gb) + 158px);width:84px;height:100px;border-radius:14px;flex-direction:column;align-items:stretch;pointer-events:auto;overflow:hidden}
+body.touch.manual #shifter{display:flex}
+#shifter button{flex:1;border:0;background:transparent;color:inherit;font-size:20px}
+#shifter button:active{background:rgba(255,138,31,.3)}
+#shifter b{font-family:var(--display);font-size:24px;text-align:center;line-height:1.2;border-block:1px solid rgba(255,138,31,.4)}
+body.touch #bUp,body.touch #bDn{position:static;width:auto;height:auto;border-radius:0}
 </style>
 </head>
 <body>
@@ -268,6 +300,12 @@ body.touch .keys{display:none}
     <div id="hint"></div>
   </div>
 
+  <div id="timer"><span class="lbl">Time</span><b id="timerV">0:00.000</b></div>
+  <div id="tachWrap">
+    <div class="pills"><button type="button" id="pMode">4H</button><button type="button" id="pGbx">Manual</button></div>
+    <canvas id="tachDial" width="480" height="264"></canvas>
+  </div>
+  <div id="topLeft"><button type="button" class="neon" id="tMenu2">MENU</button><button type="button" class="neon" id="tCam2">CAMERA</button></div>
   <div id="cluster" class="panel">
     <div class="vrow"><span id="vehName">Ridgeback 4x4</span><span id="surface">Asphalt</span></div>
     <div id="driveinfo" style="display:flex;flex-direction:column;gap:8px">
@@ -306,8 +344,8 @@ body.touch .keys{display:none}
   <button class="dbtn foot" id="bB" aria-label="Walk back">▼</button>
   <button class="rbtn" id="bDoor">USE</button>
   <button class="rbtn" id="bHand">HAND</button>
-  <button class="rbtn shiftbtn" id="bUp">UP</button>
-  <button class="rbtn shiftbtn" id="bDn">DN</button>
+  <div class="shiftbtn" id="shifter"><button type="button" id="bUp" aria-label="Shift up">▲</button><b id="shiftGear">1</b><button type="button" id="bDn" aria-label="Shift down">▼</button></div>
+  <button class="rbtn" id="bClutch">CLUTCH</button>
   <button class="pedal" id="pBrake">BRAKE</button>
   <button class="pedal" id="pGas">GAS</button>
 </div>
@@ -1390,7 +1428,7 @@ function driveVehicle(v, inp, dt) {
     v.limiter = false;
     if (v.manual && !low) { // manual: you pick the gear; each gear has its own speed range and pull
       v.shiftT = Math.max(0, v.shiftT - dt);
-      const g = v.mg, clutch = v.shiftT > 0;
+      const g = v.mg, clutch = v.shiftT > 0 || !!inp.clutch;
       const r = g > 0 ? v.speed / (maxV * GEARS[g - 1]) : g < 0 ? -v.speed / revMax : 0;
       if (inp.gas && g !== 0 && !clutch) {
         if (r >= 1) v.limiter = true;
@@ -2811,6 +2849,7 @@ function gatherInput() {
     gas: !!(up || touch.gas), brake: !!(dn || touch.brake), hand: !!(k.Space || touch.hand),
     steer: clamp((lf ? 1 : 0) - (rt ? 1 : 0) - touch.jx, -1, 1),
     fwd: clamp((up ? 1 : 0) - (dn ? 1 : 0) - touch.jy, -1, 1), side: clamp((rt ? 1 : 0) - (lf ? 1 : 0) + touch.jx, -1, 1),
+    clutch: !!(k.KeyQ || touch.clutch),
     run: !!(k.ShiftLeft || k.ShiftRight || Math.hypot(touch.jx, touch.jy) > 0.92), jump: !!(k.Space || touch.hand),
   };
 }
@@ -2846,7 +2885,7 @@ function gatherInput() {
     b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   };
   hold('pGas', 'gas'); hold('pBrake', 'brake'); hold('bHand', 'hand');
-  hold('bL', 'left'); hold('bR', 'right'); hold('bF', 'fwd'); hold('bB', 'back');
+  hold('bL', 'left'); hold('bR', 'right'); hold('bF', 'fwd'); hold('bB', 'back'); hold('bClutch', 'clutch');
   $('bDoor').addEventListener('click', () => state === 'play' && doorAction());
   $('bUp').addEventListener('click', () => state === 'play' && shift(1));
   $('tReset').addEventListener('click', () => state === 'play' && recover());
@@ -2910,6 +2949,10 @@ document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () =
   const v = player.vehicle; if (!v || b.disabled) return; v.mode = b.dataset.mode; updateModesUI();
 }));
 $('tCam').addEventListener('click', cycleCam);
+$('tCam2').addEventListener('click', cycleCam);
+$('tMenu2').addEventListener('click', () => pause());
+$('pMode').addEventListener('click', () => state === 'play' && cycleMode());
+$('pGbx').addEventListener('click', () => state === 'play' && toggleManual());
 $('tmSleep').addEventListener('click', sleepInTent);
 $('tmPack').addEventListener('click', packTent);
 $('tmClose').addEventListener('click', closeTentMenu);
@@ -3027,7 +3070,41 @@ function drawMinimap(px, pz, bearing) {
 
 const bearingOf = (dx, dz) => ((Math.atan2(dx, -dz) * 180 / Math.PI) + 360) % 360;
 let hudT = 0, lastHint = '';
+let runT = 0;
+const tachCv = $('tachDial'), tctx = tachCv.getContext('2d');
+function drawTach(v) {
+  const c = tctx, W = tachCv.width, Hh = tachCv.height, cx = W / 2, cy = Hh - 12, R = 214;
+  c.clearRect(0, 0, W, Hh);
+  const ep = ENGINES[v.key] || ENGINES.ridgeback, red = ep.red, maxR = Math.ceil((red + 1000) / 1000) * 1000;
+  const rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1), rpm = ep.idle + (red - ep.idle) * rn;
+  const a0 = Math.PI * 1.08, a1 = Math.PI * 1.92, ang = r => a0 + (a1 - a0) * clamp(r / maxR, 0, 1);
+  c.beginPath(); c.arc(cx, cy, R, Math.PI, 0); c.lineTo(cx + R, cy); c.closePath(); c.fillStyle = 'rgba(14,8,2,.62)'; c.fill();
+  c.lineWidth = 3; c.strokeStyle = 'rgba(255,138,31,.85)'; c.stroke();
+  c.beginPath(); c.arc(cx, cy, R - 22, ang(red), a1); c.lineWidth = 14; c.strokeStyle = '#e8402a'; c.stroke();
+  c.font = '700 26px Oxanium, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (let k = 0; k <= maxR / 1000; k++) {
+    const a = ang(k * 1000), x1 = cx + Math.cos(a) * (R - 8), y1 = cy + Math.sin(a) * (R - 8), x2 = cx + Math.cos(a) * (R - 30), y2 = cy + Math.sin(a) * (R - 30);
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.lineWidth = 4; c.strokeStyle = k * 1000 >= red ? '#ff5f4a' : '#ffb066'; c.stroke();
+    c.fillStyle = k * 1000 >= red ? '#ff5f4a' : '#ffd2a4'; c.fillText(String(k), cx + Math.cos(a) * (R - 56), cy + Math.sin(a) * (R - 56));
+  }
+  const a = ang(rpm);
+  c.beginPath(); c.moveTo(cx + Math.cos(a) * 40, cy + Math.sin(a) * 40); c.lineTo(cx + Math.cos(a) * (R - 18), cy + Math.sin(a) * (R - 18));
+  c.lineWidth = 6; c.strokeStyle = '#ff8a1f'; c.shadowColor = '#ff8a1f'; c.shadowBlur = 14; c.stroke(); c.shadowBlur = 0;
+  c.fillStyle = '#fff'; c.font = '800 84px Oxanium, sans-serif'; c.fillText(String(Math.round(Math.abs(v.speed) * 3.6)), cx, cy - 66);
+  c.fillStyle = '#ffb066'; c.font = '700 22px Oxanium, sans-serif'; c.fillText('KM/H', cx, cy - 16);
+  c.fillStyle = '#ffd2a4'; c.font = '800 34px Oxanium, sans-serif'; c.textAlign = 'left'; c.fillText(v.gear, cx + 70, cy - 26);
+}
+const fmtLap = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${String(Math.floor((t % 1) * 1000)).padStart(3, '0')}`;
 function updateHUD(dt) {
+  runT += dt; $('timerV').textContent = fmtLap(runT);
+  if (isTouch && player.vehicle) {
+    const v = player.vehicle; drawTach(v);
+    const ml = v.mode, gl = v.manual && v.mode !== '4L' ? 'Manual' : 'Auto';
+    if ($('pMode').textContent !== ml) $('pMode').textContent = ml;
+    if ($('pGbx').textContent !== gl) $('pGbx').textContent = gl;
+    $('pMode').hidden = !v.s.awd;
+    const sg = v.gear; if ($('shiftGear').textContent !== sg) $('shiftGear').textContent = sg;
+  }
   hudT += dt;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   const v = player.vehicle;
@@ -3231,7 +3308,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
