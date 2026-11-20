@@ -284,6 +284,11 @@ body.pad.touch #tachWrap{bottom:var(--gb)}
 body.touch #tHover{display:none}
 .pills button.on{background:#6fd3ff;color:#06202c;border-color:transparent;box-shadow:0 0 14px rgba(111,211,255,.7)}
 .tbtn#tHover.on{background:#6fd3ff;color:#06202c}
+.rbtn.fly{display:none}
+body.touch.hover .rbtn.fly{display:block;bottom:calc(var(--gb) + 108px);width:88px;height:56px;font-size:13px}
+body.touch.hover #bRise{left:calc(var(--gl) + 8px)}
+body.touch.hover #bFall{left:calc(var(--gl) + 104px)}
+body.touch.hover #bClutch,body.touch.hover #shifter{display:none!important}
 </style>
 </head>
 <body>
@@ -376,6 +381,8 @@ body.touch #tHover{display:none}
   <button class="rbtn" id="bHand">HAND</button>
   <div class="shiftbtn" id="shifter"><button type="button" id="bUp" aria-label="Shift up">▲</button><b id="shiftGear">1</b><button type="button" id="bDn" aria-label="Shift down">▼</button></div>
   <button class="rbtn" id="bClutch">CLUTCH</button>
+  <button class="rbtn fly" id="bRise">▲ UP</button>
+  <button class="rbtn fly" id="bFall">▼ DOWN</button>
   <button class="pedal" id="pBrake">BRAKE</button>
   <button class="pedal" id="pGas">GAS</button>
 </div>
@@ -1544,9 +1551,14 @@ function hoverStep(v, inp, dt) {
   v.x += Math.sin(v.yaw) * v.speed * dt; v.z += Math.cos(v.yaw) * v.speed * dt;
   collideVehicle(v); poseGround(v);
   v.hoverT = (v.hoverT || 0) + dt;
-  const want = v.gY + HOVER_H + Math.sin(v.hoverT * 2.2) * 0.15;      // gentle bob
-  v.y += (want - v.y) * Math.min(1, dt * 4); v.vy = 0; v.air = false;
-  v.pitch += (v.tPitch * 0.5 - clamp(v.accel * 0.004, -0.08, 0.08) - v.pitch) * Math.min(1, dt * 4);
+  if (v.hoverY == null) v.hoverY = v.gY + HOVER_H;
+  const climb = (inp.rise ? 1 : 0) - (inp.fall ? 1 : 0), above = v.hoverY - v.gY;
+  v.hoverY += climb * (14 + Math.max(0, above) * 0.25) * dt;                      // climbs faster the higher you are
+  if (!climb && above < 8) v.hoverY += (v.gY + HOVER_H - v.hoverY) * Math.min(1, dt * 1.5);  // near the ground: skim along it
+  v.hoverY = clamp(v.hoverY, v.gY + 1.2, v.gY + 450);                           // never into the ground, up to 450 m high
+  const want = v.hoverY + Math.sin(v.hoverT * 2.2) * 0.15;                      // gentle bob
+  v.y += (want - v.y) * Math.min(1, dt * 3.5); v.vy = 0; v.air = false;
+  v.pitch += ((above < 8 ? v.tPitch * 0.5 : 0) + climb * 0.22 - clamp(v.accel * 0.004, -0.08, 0.08) - v.pitch) * Math.min(1, dt * 4);
   v.roll += (-clamp(v.latAcc * 0.01, -0.35, 0.35) - v.roll) * Math.min(1, dt * 4);   // bank into turns
   v.gear = 'H'; v.surf = 0;
   v.rpm = 0.3 + 0.6 * Math.min(1, Math.abs(v.speed) / maxV) + (inp.gas ? 0.08 : 0); v.rpmS += (v.rpm - v.rpmS) * Math.min(1, dt * 10);
@@ -1555,10 +1567,10 @@ function toggleHover() {
   const v = player.vehicle; if (!v) { toast('Get in a car to hover', 1200); return; }
   v.hover = !v.hover;
   if (!v.hover) { v.air = true; v.vy = 0; toast('Hover <b>off</b>: back on the ground', 1600); }
-  else { v.flipped = 0; toast('Hover <b>on</b>: you\'re floating, and super fast', 2000); buzz(30); }
+  else { v.flipped = 0; v.hoverY = null; toast(isTouch ? 'Hover <b>on</b>: ▲ UP / ▼ DOWN to fly, gas to go super fast' : 'Hover <b>on</b>: ↑ ↓ arrows to fly up and down, W to go super fast', 2600); buzz(30); }
   updateHoverBtns();
 }
-function updateHoverBtns() { const on = !!(player.vehicle && player.vehicle.hover); for (const id of ['tHover', 'pHover']) { const b = $(id); if (b) b.classList.toggle('on', on); } }
+function updateHoverBtns() { const on = !!(player.vehicle && player.vehicle.hover); document.body.classList.toggle('hover', on); for (const id of ['tHover', 'pHover']) { const b = $(id); if (b) b.classList.toggle('on', on); } }
 function driveVehicle(v, inp, dt) {
   const s = v.s;
   if (v.hover) { hoverStep(v, inp, dt); return; }
@@ -3047,7 +3059,7 @@ function pollPad(dt) {
   const ax = i => dz(gp.axes[i] || 0);
   const edge = i => { const now = b(i), was = !!pad.prev[i]; pad.prev[i] = now; return now && !was; };
   pad.steer = -ax(0); pad.side = ax(0); pad.fwd = -ax(1);
-  pad.gas = bv(7); pad.brake = bv(6); pad.hand = b(1); pad.clutch = b(2);
+  pad.gas = bv(7); pad.brake = bv(6); pad.hand = b(1); pad.clutch = b(2); pad.rise = b(5); pad.fall = b(4);
   pad.run = Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) > 0.9 || b(10);
   const used = Math.abs(pad.steer) + Math.abs(pad.fwd) + pad.gas + pad.brake > 0.2 || gp.buttons.some(x => x && x.pressed);
   if (used && !pad.on) { pad.on = true; document.body.classList.add('pad'); }
@@ -3068,8 +3080,9 @@ function pollPad(dt) {
   if (!$('tentMenu').hidden) { if (pressed[0]) sleepInTent(); if (pressed[3]) packTent(); if (pressed[1]) closeTentMenu(); return; }
   if (pressed[0]) doorAction();
   if (pressed[3]) cycleCam();
-  if (pressed[5]) shift(1);
-  if (pressed[4]) shift(-1);
+  const flying = !!(player.vehicle && player.vehicle.hover);
+  if (pressed[5] && !flying) shift(1);
+  if (pressed[4] && !flying) shift(-1);
   if (pressed[12]) cycleMode();
   if (pressed[13]) recover();
   if (pressed[14]) toggleManual();
@@ -3079,12 +3092,14 @@ function pollPad(dt) {
 function gatherInput() {
   touch.jx = (touch.right ? 1 : 0) - (touch.left ? 1 : 0); touch.jy = (touch.back ? 1 : 0) - (touch.fwd ? 1 : 0);
   const k = keys;
-  const up = k.KeyW || k.ArrowUp, dn = k.KeyS || k.ArrowDown, lf = k.KeyA || k.ArrowLeft, rt = k.KeyD || k.ArrowRight;
+  const hov = !!(player.vehicle && player.vehicle.hover);
+  const up = k.KeyW || (!hov && k.ArrowUp), dn = k.KeyS || (!hov && k.ArrowDown), lf = k.KeyA || k.ArrowLeft, rt = k.KeyD || k.ArrowRight;
   return {
     gas: !!(up || touch.gas || pad.gas > 0.2), brake: !!(dn || touch.brake || pad.brake > 0.2), hand: !!(k.Space || touch.hand || pad.hand),
     steer: clamp((lf ? 1 : 0) - (rt ? 1 : 0) - touch.jx + pad.steer, -1, 1),
     fwd: clamp((up ? 1 : 0) - (dn ? 1 : 0) - touch.jy + pad.fwd, -1, 1), side: clamp((rt ? 1 : 0) - (lf ? 1 : 0) + touch.jx + pad.side, -1, 1),
     clutch: !!(k.KeyQ || touch.clutch || pad.clutch),
+    rise: hov && !!(k.ArrowUp || k.PageUp || touch.rise || pad.rise), fall: hov && !!(k.ArrowDown || k.PageDown || touch.fall || pad.fall),
     run: !!(k.ShiftLeft || k.ShiftRight || Math.hypot(touch.jx, touch.jy) > 0.92 || pad.run), jump: !!(k.Space || touch.hand || pad.hand),
   };
 }
@@ -3120,6 +3135,7 @@ function gatherInput() {
     b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   };
   hold('pGas', 'gas'); hold('pBrake', 'brake'); hold('bHand', 'hand');
+  hold('bRise', 'rise'); hold('bFall', 'fall');
   hold('bL', 'left'); hold('bR', 'right'); hold('bF', 'fwd'); hold('bB', 'back'); hold('bClutch', 'clutch');
   $('bDoor').addEventListener('click', () => state === 'play' && doorAction());
   $('bUp').addEventListener('click', () => state === 'play' && shift(1));
@@ -3367,7 +3383,7 @@ function updateHUD(dt) {
     const ep = ENGINES[v.key] || ENGINES.ridgeback, rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1);
     $('spdV').textContent = Math.round(Math.abs(v.speed) * MPH); $('spdRpm').style.width = Math.round(rn * 100) + '%';
     $('spdG').textContent = v.mode === '4L' && /^\d$/.test(v.gear) ? 'L' + v.gear : v.gear;
-    $('spdM').textContent = v.manual && v.mode !== '4L' ? 'MANUAL' : 'AUTO';
+    $('spdM').textContent = v.hover ? Math.round(Math.max(0, v.y - v.gY) * 3.281) + ' FT UP' : v.manual && v.mode !== '4L' ? 'MANUAL' : 'AUTO';
     $('iTCS').classList.toggle('on', !!v.slip && Math.abs(v.speed) > 1);
     $('iABS').classList.toggle('on', !!v.brakeOn && Math.abs(v.speed) > 3);
     const ml = v.mode, gl = v.manual && v.mode !== '4L' ? 'Manual' : 'Auto';
