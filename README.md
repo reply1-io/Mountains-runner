@@ -10,6 +10,7 @@
 - **Your own camp**: name it on the start screen, and the name appears on a wooden sign at the entrance. It has tents, a campfire, and a picnic table. Park here to repair damage.
 - **A friend**: name them on the start screen. They sit by the fire and wave when you arrive. Press E near them to invite them along. They follow you on foot, ride along in the passenger seat, and react to your driving.
 - **Five vehicles**: Ridgeback 4x4 (overland SUV), Z-7 V8 (blue C7-style supercharged V8 sports car with the LS3 V8 sound), Coupe '87 (black E30-style coupe with the M20 2.5 straight-six sound from the M20 Engine Sound page, 5-speed manual), GT Turbo 98 (Supra-style big-turbo coupe), Pocket 50 Turbo (P50-style microcar with a turbo bigger than the car: about 6,200 mph, blasts through obstacles and wraps around the map edge), and Haulmark Pickup (4x4 truck).
+- **Hover mode**: press Hover (H, the HOVER button, or R3 on a controller) and your car floats about 2.5 m up with a glowing underside, glides over everything, and gets much faster (at least 370 mph, 2.5x its normal top speed). Press it again to land. It is off unless you turn it on.
 - **Burnouts**: hold gas and brake together at a standstill to spin the rear wheels in place. Whenever the tires slip (burnouts, donuts, drifts) they pour tire smoke and leave black skid marks on the ground.
 - **Real-sounding engines**: each engine is synthesized from its cylinder count and rpm: the E30 M3-style four, turbo six, V8, diesels and a two-stroke. Turbo cars whistle and make a blow-off sound when you lift off.
 - **Your own E30 sound**: on the start screen, pick a sound or video file from your device. The game finds its steadiest engine note, loops it and re-pitches it to the E30's rpm. The file stays on your device and is remembered in your browser.
@@ -28,6 +29,7 @@
 | Shift | Run |
 | F | Cycle 2H / 4H / 4L |
 | M | Manual / automatic gearbox (or tap the gear) |
+| H | Hover mode on / off |
 | X / Z | Shift up / down (manual) |
 | L | Headlights |
 | C | Camera (chase / far / driver's view / top-down) |
@@ -51,6 +53,7 @@ Any standard game controller works (Xbox, PlayStation, Switch Pro and others, ov
 | Y | Camera |
 | RB / LB | Shift up / down |
 | D-pad | Up 4x4 mode · Down recover · Left manual/auto · Right lights |
+| R3 (click right stick) | Hover mode on / off |
 | Start | Pause / resume |
 
 On the start screen, the d-pad picks a car and A starts. In the tent menu, A sleeps, Y packs up, B closes. Crashes and hard landings rumble the controller.
