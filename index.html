@@ -306,6 +306,16 @@ body.touch.onfoot #boostBar{display:none}
 #boostBar span{font:700 10px var(--display);letter-spacing:.14em;color:#ff8a1f}
 #boostBar i{display:block;width:11px;height:9px;border:1px solid rgba(255,138,31,.6);background:rgba(24,12,2,.4)}
 #boostBar i.on{background:#ff8a1f;box-shadow:0 0 8px #ff8a1f}
+.neon.ico{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1}
+.neon.ico i{font-style:normal;font-size:16px;letter-spacing:0}
+#hgate{display:none;position:absolute;right:calc(var(--gr) + 188px);bottom:calc(var(--gb) + 8px);width:112px;height:min(150px,38vh);border-radius:14px;pointer-events:auto;gap:0;padding:8px;box-sizing:border-box}
+body.touch.manual #hgate{display:flex}
+body.touch.manual #shifter,body.touch.hover #hgate{display:none!important}
+#hgate .gcol{flex:1;display:flex;flex-direction:column;justify-content:space-between;align-items:center;position:relative}
+#hgate .gcol::before{content:"";position:absolute;top:22px;bottom:22px;left:50%;width:6px;margin-left:-3px;border-radius:3px;background:rgba(255,138,31,.22);border:1px solid rgba(255,138,31,.5)}
+#hgate .gcol button{position:relative;z-index:1;width:34px;height:26px;border:0;background:transparent;color:var(--neon-ink);font:800 15px var(--display);letter-spacing:0;writing-mode:horizontal-tb}
+#hgate .gneutral{position:absolute;left:22px;right:22px;top:50%;height:6px;margin-top:-3px;border-radius:3px;border:1px solid rgba(255,138,31,.5);background:rgba(255,138,31,.22);padding:0}
+#gknob{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffd2a4,#ff8a1f 60%,#8a3d05);box-shadow:0 0 12px #ff8a1f;pointer-events:none;transition:left .09s,top .09s;z-index:2}
 </style>
 </head>
 <body>
@@ -354,8 +364,8 @@ body.touch.onfoot #boostBar{display:none}
     </div>
   </div>
   <div id="topLeft">
-    <button type="button" class="neon" id="tMenu2">Menu</button>
-    <button type="button" class="neon" id="tCam2">Camera</button>
+    <button type="button" class="neon ico" id="tMenu2"><i>☰</i>Menu</button>
+    <button type="button" class="neon ico" id="tCam2"><i>◉</i>Camera</button>
     <button type="button" class="neon" id="tSpawn">Spawn</button>
     <button type="button" class="neon" id="tMap">Map</button>
   </div>
@@ -398,6 +408,13 @@ body.touch.onfoot #boostBar{display:none}
   <button class="dbtn foot" id="bB" aria-label="Walk back">▼</button>
   <button class="rbtn" id="bDoor">USE</button>
   <button class="rbtn" id="bHand">HAND</button>
+  <div class="shiftbtn" id="hgate" aria-label="Gear gate">
+    <div class="gcol"><button type="button" data-g="1">1</button><button type="button" data-g="2">2</button></div>
+    <div class="gcol"><button type="button" data-g="3">3</button><button type="button" data-g="4">4</button></div>
+    <div class="gcol"><button type="button" data-g="5">5</button><button type="button" data-g="-1">R</button></div>
+    <button type="button" class="gneutral" data-g="0" aria-label="Neutral"></button>
+    <i id="gknob"></i>
+  </div>
   <div class="shiftbtn" id="shifter"><button type="button" id="bUp" aria-label="Shift up">▲</button><b id="shiftGear">1</b><button type="button" id="bDn" aria-label="Shift down">▼</button></div>
   <button class="rbtn" id="bClutch">CLUTCH</button>
   <button class="rbtn fly" id="bRise">▲ UP</button>
@@ -3210,6 +3227,18 @@ function recover() {
   toast('Vehicle recovered', 1000);
 }
 const ORD = ['', '1st', '2nd', '3rd', '4th', '5th'];
+function shiftTo(g) {
+  const v = player.vehicle; if (!v) return;
+  if (!v.manual) { toggleManual(); }
+  let guard = 8; while (v.mg !== g && guard-- > 0) { const before = v.mg; shift(g > v.mg ? 1 : -1); if (v.mg === before) break; }
+}
+function placeKnob(v) {
+  const gate = $('hgate'); if (!gate || gate.offsetParent === null) return;
+  const g = v.mg, col = g === 0 ? 1 : g === -1 ? 2 : Math.floor((g - 1) / 2), row = g === 0 ? 0.5 : g === -1 ? 1 : (g - 1) % 2;
+  const W = gate.clientWidth - 16, Hh = gate.clientHeight - 16, k = $('gknob');
+  const x = 8 + W * (col + 0.5) / 3, y = 8 + 13 + (Hh - 26) * row;
+  if (g === 0) { k.style.left = (8 + W / 2) + 'px'; k.style.top = (8 + Hh / 2) + 'px'; } else { k.style.left = x + 'px'; k.style.top = y + 'px'; }
+}
 function shift(d) {
   const v = player.vehicle; if (!v) return;
   if (!v.manual) { toast('Automatic gearbox. Press <b>M</b> (or tap the gear) for manual', 1600); return; }
@@ -3247,6 +3276,7 @@ $('tCam').addEventListener('click', cycleCam);
 $('tHover').addEventListener('click', () => state === 'play' && toggleHover());
 $('pHover').addEventListener('click', () => state === 'play' && toggleHover());
 $('tCam2').addEventListener('click', cycleCam);
+document.querySelectorAll('#hgate [data-g]').forEach(b => b.addEventListener('click', () => state === 'play' && shiftTo(+b.dataset.g)));
 $('tSpawn').addEventListener('click', () => state === 'play' && spawnCar());
 $('tMap').addEventListener('click', () => state === 'play' && openBigMap());
 $('bigMap').addEventListener('click', () => { $('bigMap').hidden = true; });
@@ -3413,6 +3443,7 @@ function updateHUD(dt) {
     if ($('pGbx').textContent !== gl) $('pGbx').textContent = gl;
     $('pMode').hidden = !v.s.awd;
     const sg = v.gear; if ($('shiftGear').textContent !== sg) $('shiftGear').textContent = sg;
+    placeKnob(v);
   }
   hudT += dt;
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
@@ -3619,7 +3650,7 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
-window.__game = { toggleHover, updateTireFx, tireFx, pad, pollPad, drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
+window.__game = { shiftTo, toggleHover, updateTireFx, tireFx, pad, pollPad, drawTach, HOME, homePt, tent, nearCarRear, nearPitchedTent, ENGINES, analyseEngineFile, get customSound() { return customSound; }, RAMPS, groundH, sfx, shift, toggleManual, updateCamera, camera, person, cam, friend, names, talkToFriend, exitVehicle, vehicles, player, keys, SPECS, driveVehicle, poseGround, roadAt, trail, enterVehicle, get state() { return state; }, set time(h) { timeH = h; } };
 })();
 </script>
 </body>
