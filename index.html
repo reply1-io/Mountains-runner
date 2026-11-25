@@ -234,7 +234,7 @@ body.touch .keys{display:none}
   #sndStatus{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
 }
 /* phone controls, styled like The Art of Touge: glowing orange outlines */
-:root { --neon: rgba(238, 241, 243, .38); --neon-ink: #eef1f3; --neon-bg: rgba(22, 24, 27, .34); }
+:root { --neon: #ff8a1f; --neon-ink: #ffb066; --neon-bg: rgba(24, 12, 2, .38); }
 #timer{position:absolute;right:var(--gr);top:calc(var(--gt) + 52px);display:flex;flex-direction:column;align-items:flex-end;pointer-events:none}
 #timer b{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 1px 6px rgba(0,0,0,.5)}
 #tachWrap,#topLeft,#bClutch{display:none}
@@ -265,9 +265,9 @@ body.touch #minimap{width:84px;height:84px}
 body.touch #timer{top:var(--gt)}
 body.touch #tools{top:calc(var(--gt) + 54px)}
 body.touch #tools .tbtn{height:32px;font-size:10px}
-body.touch .pedal,body.touch .rbtn,body.touch .dbtn,body.touch #shifter{border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);letter-spacing:.14em;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-body.touch .pedal.down,body.touch .rbtn.down,body.touch .dbtn.down{background:rgba(238,241,243,.42);color:#10161a}
-body.touch #pBrake.down{background:rgba(255,95,74,.6);color:#fff}
+body.touch .pedal,body.touch .rbtn,body.touch .dbtn,body.touch #shifter{border:1.5px solid var(--neon);background:var(--neon-bg);color:var(--neon-ink);letter-spacing:.18em;text-shadow:0 0 8px rgba(255,138,31,.55);box-shadow:inset 0 0 18px rgba(255,138,31,.12)}
+body.touch .pedal.down,body.touch .rbtn.down,body.touch .dbtn.down{background:rgba(255,138,31,.4);color:#fff;box-shadow:0 0 22px rgba(255,138,31,.55)}
+body.touch #pBrake.down{background:rgba(255,138,31,.4);color:#fff}
 body.touch .rbtn{border-radius:14px;width:84px;height:50px;font-size:11px}
 body.touch #bHand{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 138px)}
 body.touch #bDoor{right:calc(var(--gr) + 94px);bottom:calc(var(--gb) + 196px)}
@@ -289,6 +289,23 @@ body.touch.hover .rbtn.fly{display:block;bottom:calc(var(--gb) + 108px);width:88
 body.touch.hover #bRise{left:calc(var(--gl) + 8px)}
 body.touch.hover #bFall{left:calc(var(--gl) + 104px)}
 body.touch.hover #bClutch,body.touch.hover #shifter{display:none!important}
+body.touch .pedal{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.3em;align-items:center;justify-content:center;padding:0}
+body.touch #pGas,body.touch #pBrake{height:min(230px,46vh)}
+body.touch #bHand{bottom:calc(var(--gb) + min(230px,46vh) + 8px);right:calc(var(--gr) + 94px)}
+body.touch #bDoor{bottom:calc(var(--gb) + min(230px,46vh) + 8px);right:var(--gr)}
+body.touch #shifter{right:calc(var(--gr) + 190px);bottom:calc(var(--gb) + 8px);height:min(150px,38vh)}
+body.touch #compass{display:none}
+body.touch .neon{color:var(--neon-ink)}
+/* round dial instead of the speed pill */
+body.touch .spd{display:none}
+#tachDial{width:240px;height:132px;display:block}
+/* boost / rev bar, top centre */
+#boostBar{display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--gt) + 84px);align-items:center;gap:6px;pointer-events:none}
+body.touch #boostBar{display:flex}
+body.touch.onfoot #boostBar{display:none}
+#boostBar span{font:700 10px var(--display);letter-spacing:.14em;color:#ff8a1f}
+#boostBar i{display:block;width:11px;height:9px;border:1px solid rgba(255,138,31,.6);background:rgba(24,12,2,.4)}
+#boostBar i.on{background:#ff8a1f;box-shadow:0 0 8px #ff8a1f}
 </style>
 </head>
 <body>
@@ -325,9 +342,11 @@ body.touch.hover #bClutch,body.touch.hover #shifter{display:none!important}
     <div id="hint"></div>
   </div>
 
+  <div id="boostBar"><span>BOOST</span><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div id="timer"><span class="lbl">Time</span><b id="timerV">0:00.000</b></div>
   <div id="tachWrap">
     <div class="pills"><button type="button" id="pMode">4H</button><button type="button" id="pGbx">Manual</button><button type="button" id="pHover">Hover</button></div>
+    <canvas id="tachDial" width="480" height="264"></canvas>
     <div class="spd" id="spd">
       <span class="ind" id="iTCS">TCS</span><span class="ind" id="iABS">ABS</span>
       <div class="spd-main"><div class="rpm"><i id="spdRpm"></i></div><b id="spdV">0</b><span>mph</span></div>
@@ -2048,7 +2067,7 @@ function updateCamera(dt) {
 }
 
 /* ------------------------------------------------------------------ sky + time */
-let timeH = 16.4;
+let timeH = 21.2; // start at night
 const SKY = { night: new T.Color(0x0a1424), day: new T.Color(0x9cc9e6), dusk: new T.Color(0xe39a6a) };
 const skyCol = new T.Color(), tmpC = new T.Color();
 let dayF = 1;
@@ -3381,6 +3400,9 @@ function updateHUD(dt) {
   if (isTouch && player.vehicle) {
     const v = player.vehicle;
     const ep = ENGINES[v.key] || ENGINES.ridgeback, rn = clamp((v.rpmS - 0.12) / 0.88, 0, 1);
+    drawTach(v);
+    { const lvl = v.s.turbo ? v.boost : v.hover ? Math.min(1, Math.abs(v.speed) / 160) : rn; const n = Math.round(lvl * 10);
+      $('boostBar').querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i < n)); }
     $('spdV').textContent = Math.round(Math.abs(v.speed) * MPH); $('spdRpm').style.width = Math.round(rn * 100) + '%';
     $('spdG').textContent = v.mode === '4L' && /^\d$/.test(v.gear) ? 'L' + v.gear : v.gear;
     $('spdM').textContent = v.hover ? Math.round(Math.max(0, v.y - v.gY) * 3.281) + ' FT UP' : v.manual && v.mode !== '4L' ? 'MANUAL' : 'AUTO';
