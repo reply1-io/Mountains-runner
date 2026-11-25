@@ -1119,7 +1119,7 @@ function updateTireFx(dt) {
     if (p.life <= 0) p.sp.visible = false;
   }
   const v = player.vehicle; if (!v) return;
-  const spinning = v.slip && !v.air && (v.burn || Math.abs(v.speed) > 3) && v.throttle > 0 || (v.slip && Math.abs(v.latAcc) > 6);
+  const spinning = !v.air && !v.hover && (v.burn || (v.slide && Math.abs(v.speed) > 4));
   const c = Math.cos(v.yaw), sn = Math.sin(v.yaw), hw = v.s.track / 2, hb = v.s.wb / 2;
   const wheels = v.s.three ? [[0, -hb]] : [[hw, -hb], [-hw, -hb]];
   wheels.forEach(([lx, lz], wi) => {
@@ -1633,7 +1633,7 @@ function driveVehicle(v, inp, dt) {
   }
   const dmgK = 1 - v.damage / 100 * 0.45;
   const maxV = (low ? s.low : s.max) / 3.6 * dmgK, revMax = (low ? 7 : 22) / 3.6;
-  v.slip = false; v.brakeOn = false;
+  v.slip = false; v.slide = false; v.brakeOn = false;
   let a = 0, decel = 0, drive = 0;
   if (!lowAir) {
     const eng = s.accel * (low ? 2.4 : 1) * dmgK * (s.turbo ? 0.45 + 0.55 * v.boost : 1);
@@ -1683,8 +1683,8 @@ function driveVehicle(v, inp, dt) {
   if (!lowAir) {
     let yr = v.speed * Math.tan(v.steer) / s.wb;
     const latMax = sg * gk * 9.8 * 1.3, lat = Math.abs(v.speed * yr);
-    if (lat > latMax) { yr *= latMax / lat; v.slip = true; }
-    if (inp.hand && Math.abs(v.speed) > 6) { yr *= 1.55; v.slip = true; }
+    if (lat > latMax) { yr *= latMax / lat; v.slip = true; v.slide = lat > latMax * 1.15; }
+    if (inp.hand && Math.abs(v.speed) > 6) { yr *= 1.55; v.slip = true; v.slide = true; }
     v.yaw += yr * dt; v.latAcc = v.speed * yr;
   }
   const cp = Math.cos(v.pitch);
